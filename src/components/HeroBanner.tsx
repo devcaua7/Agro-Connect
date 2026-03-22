@@ -16,7 +16,7 @@ const HeroBanner = () => {
   const displayName = user?.user_metadata?.display_name || "Visitante";
 
   return (
-    <div className="bg-hero rounded-2xl p-8 md:p-10 mx-4 md:mx-8 mt-4 md:mt-8 animate-fade-in-up">
+    <div className="bg-hero rounded-2xl p-6 md:p-8 mx-4 md:mx-8 mt-4 md:mt-6 animate-fade-in-up max-w-4xl">
       <h2 className="text-2xl md:text-3xl font-bold text-hero-foreground leading-tight">
         Olá, {displayName}! 👋
       </h2>
