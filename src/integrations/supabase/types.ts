@@ -43,13 +43,51 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          product_id: string
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          product_id: string
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
+          buyer_confirmed_receipt: boolean | null
           buyer_id: string
           created_at: string
           id: string
           payment_method: string | null
+          payment_type: string | null
           product_id: string
+          qr_expires_at: string | null
           quantity: number | null
           seller_id: string
           status: string
@@ -57,11 +95,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          buyer_confirmed_receipt?: boolean | null
           buyer_id: string
           created_at?: string
           id?: string
           payment_method?: string | null
+          payment_type?: string | null
           product_id: string
+          qr_expires_at?: string | null
           quantity?: number | null
           seller_id: string
           status?: string
@@ -69,11 +110,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          buyer_confirmed_receipt?: boolean | null
           buyer_id?: string
           created_at?: string
           id?: string
           payment_method?: string | null
+          payment_type?: string | null
           product_id?: string
+          qr_expires_at?: string | null
           quantity?: number | null
           seller_id?: string
           status?: string
