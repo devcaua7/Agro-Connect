@@ -22,15 +22,18 @@ import morango from "@/assets/morango.jpg";
 import feijao from "@/assets/feijao.jpg";
 
 const mockProducts = [
-  { image: tomate, name: "Tomate Orgânico", price: "R$ 6,50/kg", location: "Campinas, SP", category: "Verduras" },
-  { image: alface, name: "Alface Fresca", price: "R$ 3,00", location: "Jundiaí, SP", category: "Verduras" },
-  { image: cenoura, name: "Cenoura", price: "R$ 4,80/kg", location: "Sorocaba, SP", category: "Legumes" },
-  { image: batata, name: "Batata", price: "R$ 5,20/kg", location: "Itu, SP", category: "Legumes" },
-  { image: manga, name: "Manga Palmer", price: "R$ 7,00/kg", location: "Ribeirão, SP", category: "Frutas" },
-  { image: milho, name: "Milho Verde", price: "R$ 1,50/un", location: "Piracicaba, SP", category: "Grãos" },
-  { image: morango, name: "Morango Orgânico", price: "R$ 12,00/cx", location: "Atibaia, SP", category: "Frutas" },
-  { image: feijao, name: "Feijão Carioca", price: "R$ 8,90/kg", location: "Bauru, SP", category: "Grãos" },
+  { id: "demo-tomate", image: tomate, name: "Tomate Orgânico", price: "R$ 6,50/kg", location: "Campinas, SP", category: "Verduras", rawPrice: 6.5, priceUnit: "kg" },
+  { id: "demo-alface", image: alface, name: "Alface Fresca", price: "R$ 3,00/un", location: "Jundiaí, SP", category: "Verduras", rawPrice: 3.0, priceUnit: "un" },
+  { id: "demo-cenoura", image: cenoura, name: "Cenoura", price: "R$ 4,80/kg", location: "Sorocaba, SP", category: "Legumes", rawPrice: 4.8, priceUnit: "kg" },
+  { id: "demo-batata", image: batata, name: "Batata", price: "R$ 5,20/kg", location: "Itu, SP", category: "Legumes", rawPrice: 5.2, priceUnit: "kg" },
+  { id: "demo-manga", image: manga, name: "Manga Palmer", price: "R$ 7,00/kg", location: "Ribeirão, SP", category: "Frutas", rawPrice: 7.0, priceUnit: "kg" },
+  { id: "demo-milho", image: milho, name: "Milho Verde", price: "R$ 1,50/un", location: "Piracicaba, SP", category: "Grãos", rawPrice: 1.5, priceUnit: "un" },
+  { id: "demo-morango", image: morango, name: "Morango Orgânico", price: "R$ 12,00/cx", location: "Atibaia, SP", category: "Frutas", rawPrice: 12.0, priceUnit: "cx" },
+  { id: "demo-feijao", image: feijao, name: "Feijão Carioca", price: "R$ 8,90/kg", location: "Bauru, SP", category: "Grãos", rawPrice: 8.9, priceUnit: "kg" },
 ];
+
+// Exporta para uso na página de detalhes (simulação)
+export { mockProducts };
 
 const FeaturedProducts = () => {
   // Busca produtos do banco de dados
@@ -84,7 +87,7 @@ const FeaturedProducts = () => {
             className="opacity-0 animate-fade-in-up"
             style={{ animationDelay: `${index * 80 + 400}ms` }}
           >
-            <ProductCard {...product} />
+            <ProductCard id={product.id} image={product.image} name={product.name} price={product.price} location={product.location} category={product.category} />
           </div>
         ))}
       </div>

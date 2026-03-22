@@ -2,10 +2,10 @@
  * PRODUCT DETAIL — Detalhes do produto com chat e carrinho
  * 
  * EXPLICAÇÃO:
- * - Agora inclui botão "Conversar com Vendedor" que abre o chat.
- * - Botão "Adicionar ao Carrinho" usa CartContext.
- * - O sistema de curtidas e avaliações continua funcionando.
- * - Se o usuário for o dono, pode excluir o anúncio.
+ * - Suporta produtos reais (banco de dados) e produtos demo (mockados).
+ * - IDs que começam com "demo-" usam dados mockados para simulação.
+ * - Qualquer usuário logado pode comprar e avaliar (inclusive o vendedor).
+ * - O dono do anúncio real pode excluí-lo.
  */
 
 import { useParams, useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { mockProducts } from "@/components/FeaturedProducts";
 import Layout from "@/components/Layout";
 import { Heart, Star, Trash2, ShoppingCart, ArrowLeft, MapPin, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -27,8 +28,15 @@ const ProductDetail = () => {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [demoLiked, setDemoLiked] = useState(false);
+  const [demoLikes, setDemoLikes] = useState(Math.floor(Math.random() * 20) + 3);
+  const [demoReviews, setDemoReviews] = useState<{ name: string; rating: number; comment: string }[]>([]);
 
-  const { data: product, isLoading } = useQuery({
+  // Verifica se é um produto demo (simulação)
+  const isDemo = id?.startsWith("demo-");
+  const demoProduct = isDemo ? mockProducts.find((p) => p.id === id) : null;
+
+  const { data: dbProduct, isLoading } = useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -39,8 +47,24 @@ const ProductDetail = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !isDemo,
   });
+
+  // Unifica: produto do banco OU demo
+  const product = isDemo && demoProduct
+    ? {
+        id: demoProduct.id,
+        name: demoProduct.name,
+        price: demoProduct.rawPrice,
+        price_unit: demoProduct.priceUnit,
+        image_url: demoProduct.image,
+        city: demoProduct.location,
+        category: demoProduct.category,
+        description: `Produto fresco direto do produtor. ${demoProduct.name} de alta qualidade, cultivado com práticas sustentáveis.`,
+        user_id: "demo-seller",
+        is_active: true,
+      }
+    : dbProduct;
 
   // Busca perfil do vendedor separadamente
   const { data: sellerProfile } = useQuery({
@@ -53,7 +77,7 @@ const ProductDetail = () => {
         .maybeSingle();
       return data;
     },
-    enabled: !!product?.user_id,
+    enabled: !!product?.user_id && !isDemo,
   });
 
   const { data: userLike } = useQuery({
@@ -67,7 +91,7 @@ const ProductDetail = () => {
         .maybeSingle();
       return data;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !isDemo,
   });
 
   const { data: likesCount } = useQuery({
@@ -79,7 +103,7 @@ const ProductDetail = () => {
         .eq("product_id", id!);
       return count ?? 0;
     },
-    enabled: !!id,
+    enabled: !!id && !isDemo,
   });
 
   const { data: reviews } = useQuery({
@@ -91,7 +115,7 @@ const ProductDetail = () => {
         .eq("product_id", id!);
       return data ?? [];
     },
-    enabled: !!id,
+    enabled: !!id && !isDemo,
   });
 
   // Busca nomes dos avaliadores
@@ -106,11 +130,16 @@ const ProductDetail = () => {
         .in("user_id", userIds);
       return data ?? [];
     },
-    enabled: !!reviews && reviews.length > 0,
+    enabled: !!reviews && reviews.length > 0 && !isDemo,
   });
 
   const toggleLike = useMutation({
     mutationFn: async () => {
+      if (isDemo) {
+        setDemoLiked((prev) => !prev);
+        setDemoLikes((prev) => (demoLiked ? prev - 1 : prev + 1));
+        return;
+      }
       if (userLike) {
         await supabase.from("likes").delete().eq("id", userLike.id);
       } else {
@@ -118,8 +147,10 @@ const ProductDetail = () => {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["like", id] });
-      queryClient.invalidateQueries({ queryKey: ["likes-count", id] });
+      if (!isDemo) {
+        queryClient.invalidateQueries({ queryKey: ["like", id] });
+        queryClient.invalidateQueries({ queryKey: ["likes-count", id] });
+      }
     },
   });
 
@@ -137,6 +168,11 @@ const ProductDetail = () => {
 
   const submitReview = useMutation({
     mutationFn: async () => {
+      if (isDemo) {
+        const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Você";
+        setDemoReviews((prev) => [...prev, { name: displayName, rating, comment }]);
+        return;
+      }
       const { error } = await supabase.from("reviews").insert({
         product_id: id!,
         user_id: user!.id,
@@ -149,7 +185,9 @@ const ProductDetail = () => {
       toast.success("Avaliação enviada!");
       setRating(0);
       setComment("");
-      queryClient.invalidateQueries({ queryKey: ["reviews", id] });
+      if (!isDemo) {
+        queryClient.invalidateQueries({ queryKey: ["reviews", id] });
+      }
     },
     onError: (err: any) => {
       if (err.message?.includes("duplicate")) {
@@ -177,15 +215,25 @@ const ProductDetail = () => {
 
   const handleChat = () => {
     if (!user) { navigate("/login"); return; }
+    if (isDemo) {
+      toast.info("Chat de simulação — em produção conectaria ao vendedor real.");
+      return;
+    }
     navigate(`/chat?seller=${product!.user_id}&product=${product!.id}`);
   };
 
-  const isOwner = user?.id === product?.user_id;
-  const avgRating = reviews?.length
-    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+  const isOwner = !isDemo && user?.id === product?.user_id;
+
+  // Calcula média de avaliações (reais ou demo)
+  const allReviews = isDemo ? demoReviews : reviews;
+  const avgRating = allReviews?.length
+    ? (allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length).toFixed(1)
     : null;
 
-  if (isLoading) {
+  const displayLikes = isDemo ? demoLikes : likesCount;
+  const displayLiked = isDemo ? demoLiked : !!userLike;
+
+  if (!isDemo && isLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
@@ -237,8 +285,8 @@ const ProductDetail = () => {
               }}
               className="flex items-center gap-1 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 active:scale-[0.95] transition-all"
             >
-              <Heart className={`w-5 h-5 ${userLike ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
-              <span className="text-sm font-medium">{likesCount}</span>
+              <Heart className={`w-5 h-5 ${displayLiked ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
+              <span className="text-sm font-medium">{displayLikes}</span>
             </button>
             {isOwner && (
               <button
@@ -258,14 +306,14 @@ const ProductDetail = () => {
           <MapPin className="w-4 h-4" />
           <span>{product.city || sellerProfile?.city || "Localização não informada"}</span>
           <span className="mx-1">·</span>
-          <span>Vendedor: {sellerProfile?.display_name || "Anônimo"}</span>
+          <span>Vendedor: {isDemo ? "Produtor Rural" : sellerProfile?.display_name || "Anônimo"}</span>
         </div>
 
         {avgRating && (
           <div className="flex items-center gap-1 mt-2">
             <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
             <span className="text-sm font-medium">{avgRating}</span>
-            <span className="text-sm text-muted-foreground">({reviews?.length} avaliações)</span>
+            <span className="text-sm text-muted-foreground">({allReviews?.length} avaliações)</span>
           </div>
         )}
 
@@ -280,52 +328,47 @@ const ProductDetail = () => {
           {product.category}
         </span>
 
-        {/* Ações do comprador: carrinho + chat */}
-        {!isOwner && (
-          <div className="mt-6 p-4 bg-card rounded-xl border border-border space-y-4">
-            {/* Quantidade */}
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-muted-foreground">Quantidade:</label>
-              <input
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                className="w-20 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
-              />
-              <span className="text-sm text-muted-foreground">{product.price_unit}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Total: <strong className="text-primary">R$ {(Number(product.price) * quantity).toFixed(2).replace(".", ",")}</strong>
-            </p>
-
-            {/* Botões */}
-            <div className="flex gap-2">
-              <button
-                onClick={handleAddToCart}
-                className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
-                           hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-              >
-                <ShoppingCart className="w-4 h-4" />
-                Adicionar ao Carrinho
-              </button>
-              <button
-                onClick={handleChat}
-                className="py-3 px-4 rounded-xl border border-primary text-primary font-semibold text-sm
-                           hover:bg-primary/5 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Chat
-              </button>
-            </div>
+        {/* Ações: carrinho + chat (qualquer usuário pode comprar) */}
+        <div className="mt-6 p-4 bg-card rounded-xl border border-border space-y-4">
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-muted-foreground">Quantidade:</label>
+            <input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
+              className="w-20 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+            />
+            <span className="text-sm text-muted-foreground">{product.price_unit}</span>
           </div>
-        )}
+          <p className="text-sm text-muted-foreground">
+            Total: <strong className="text-primary">R$ {(Number(product.price) * quantity).toFixed(2).replace(".", ",")}</strong>
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAddToCart}
+              className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
+                         hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Adicionar ao Carrinho
+            </button>
+            <button
+              onClick={handleChat}
+              className="py-3 px-4 rounded-xl border border-primary text-primary font-semibold text-sm
+                         hover:bg-primary/5 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Chat
+            </button>
+          </div>
+        </div>
 
         {/* Avaliações */}
         <div className="mt-8 mb-8">
           <h3 className="font-semibold text-foreground mb-4">Avaliações</h3>
 
-          {user && !isOwner && (
+          {user && (
             <div className="p-4 bg-card rounded-xl border border-border mb-4">
               <p className="text-sm font-medium text-foreground mb-2">Deixe sua avaliação</p>
               <div className="flex gap-1 mb-3">
@@ -358,7 +401,27 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {reviews && reviews.length > 0 ? (
+          {/* Avaliações demo */}
+          {isDemo && demoReviews.length > 0 && (
+            <div className="space-y-3">
+              {demoReviews.map((review, i) => (
+                <div key={i} className="p-3 bg-card rounded-xl border border-border">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-foreground">{review.name}</span>
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} className={`w-3 h-3 ${s <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-border"}`} />
+                      ))}
+                    </div>
+                  </div>
+                  {review.comment && <p className="text-sm text-muted-foreground">{review.comment}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Avaliações reais */}
+          {!isDemo && reviews && reviews.length > 0 ? (
             <div className="space-y-3">
               {reviews.map((review) => {
                 const rp = reviewProfiles?.find((p) => p.user_id === review.user_id);
@@ -379,9 +442,11 @@ const ProductDetail = () => {
                 );
               })}
             </div>
-          ) : (
+          ) : !isDemo ? (
             <p className="text-sm text-muted-foreground">Nenhuma avaliação ainda.</p>
-          )}
+          ) : demoReviews.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma avaliação ainda.</p>
+          ) : null}
         </div>
       </div>
     </Layout>
