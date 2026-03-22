@@ -1,29 +1,45 @@
 /**
- * PRODUCT CARD — Card de produto individual
+ * PRODUCT CARD — Card de produto clicável
  * 
  * EXPLICAÇÃO:
- * - É um componente reutilizável que recebe dados via "props" (propriedades).
- * - "interface ProductCardProps" define o TIPO dos dados que o componente espera.
- *   Isso é TypeScript — ajuda a prevenir bugs dizendo exatamente que dados são necessários.
- * - O card tem: imagem, nome, preço, localização e badge de categoria.
- * - "aspect-[4/3]" define a proporção da imagem (4:3) para manter consistência visual.
- * - "object-cover" faz a imagem preencher o container sem distorcer.
- * - Hover effects (group-hover) criam interatividade suave ao passar o mouse.
+ * - Agora ao clicar no card, o usuário é redirecionado para a página de detalhes.
+ * - Se não estiver logado, é redirecionado para a tela de login.
+ * - useNavigate() do React Router permite navegação programática.
+ * - O card agora aceita um "id" para construir a URL de detalhes.
  */
 
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+
 interface ProductCardProps {
-  image: string;      // caminho da imagem (importada como ES6 module)
-  name: string;       // nome do produto
-  price: string;      // preço formatado (ex: "R$ 5,00")
-  location: string;   // localização do vendedor
-  category: string;   // categoria do produto
+  id?: string;         // ID do produto no banco (opcional para dados mockados)
+  image: string;
+  name: string;
+  price: string;
+  location: string;
+  category: string;
 }
 
-const ProductCard = ({ image, name, price, location, category }: ProductCardProps) => {
+const ProductCard = ({ id, image, name, price, location, category }: ProductCardProps) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleClick = () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    if (id) {
+      navigate(`/produto/${id}`);
+    }
+  };
+
   return (
-    <div className="group bg-card rounded-xl overflow-hidden shadow-sm hover:shadow-lg
-                    transition-shadow duration-300 cursor-pointer">
-      {/* Container da imagem */}
+    <div
+      onClick={handleClick}
+      className="group bg-card rounded-xl overflow-hidden shadow-sm hover:shadow-lg
+                 transition-shadow duration-300 cursor-pointer"
+    >
       <div className="aspect-[4/3] overflow-hidden">
         <img
           src={image}
@@ -34,7 +50,6 @@ const ProductCard = ({ image, name, price, location, category }: ProductCardProp
         />
       </div>
 
-      {/* Informações do produto */}
       <div className="p-3">
         <h4 className="font-semibold text-sm text-foreground truncate">{name}</h4>
         <p className="text-primary font-bold text-base mt-1">{price}</p>

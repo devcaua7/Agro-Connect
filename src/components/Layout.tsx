@@ -2,13 +2,10 @@
  * LAYOUT — Componente wrapper que estrutura a página inteira
  * 
  * EXPLICAÇÃO:
- * - O Layout é um "container" que envolve todas as páginas.
- * - Ele inclui o Sidebar (desktop), BottomNav (mobile) e o conteúdo principal.
- * - "children" é uma prop especial do React que representa tudo que está
- *   dentro das tags <Layout>...</Layout>. É como um "buraco" onde 
- *   o conteúdo de cada página é inserido.
- * - "md:ml-56" empurra o conteúdo principal para a direita no desktop,
- *   criando espaço para o sidebar fixo de 56 unidades (14rem = 224px).
+ * - O Layout envolve todas as páginas com Sidebar + BottomNav.
+ * - "md:ml-16" é o espaço mínimo quando sidebar está colapsado.
+ *   O sidebar pode ter largura variável (16 ou 56), mas usamos 
+ *   o valor padrão expandido para evitar sobreposição.
  */
 
 import Sidebar from "./Sidebar";
@@ -23,8 +20,8 @@ const Layout = ({ children }: LayoutProps) => {
     <div className="min-h-screen bg-background">
       <Sidebar />
       
-      {/* Conteúdo principal — empurrado para direita no desktop */}
-      <main className="md:ml-56 pb-20 md:pb-8">
+      {/* Conteúdo principal — espaço para sidebar (colapsado ou expandido) */}
+      <main className="md:ml-56 pb-20 md:pb-8 transition-all duration-300">
         {children}
       </main>
 

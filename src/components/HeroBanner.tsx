@@ -1,28 +1,32 @@
 /**
- * HERO BANNER — Banner principal da Home
+ * HERO BANNER — Banner principal com nome do usuário logado
  * 
  * EXPLICAÇÃO:
- * - É o primeiro elemento visual que o usuário vê. Deve ser chamativo e informativo.
- * - Fundo verde (bg-hero) com texto branco (text-hero-foreground).
- * - Inclui um campo de busca (SearchBar) integrado.
- * - "rounded-2xl" arredonda os cantos do banner.
- * - As classes de animação (animate-fade-in-up) fazem o conteúdo 
- *   aparecer suavemente ao carregar a página.
+ * - Agora usa o AuthContext para mostrar o nome do usuário logado.
+ * - Se não estiver logado, mostra "Visitante" e um link para login.
+ * - O operador "?." (optional chaining) evita erros se user for null.
  */
 
 import { Search } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Link } from "react-router-dom";
 
 const HeroBanner = () => {
+  const { user } = useAuth();
+  const displayName = user?.user_metadata?.display_name || "Visitante";
+
   return (
     <div className="bg-hero rounded-2xl p-8 md:p-10 mx-4 md:mx-8 mt-4 md:mt-8 animate-fade-in-up">
       <h2 className="text-2xl md:text-3xl font-bold text-hero-foreground leading-tight">
-        Olá, Cauã Biorn! 👋
+        Olá, {displayName}! 👋
       </h2>
       <p className="text-hero-foreground/80 mt-2 text-sm md:text-base">
-        Encontre os melhores produtos da agricultura familiar.
+        {user
+          ? "Encontre os melhores produtos da agricultura familiar."
+          : <>Faça <Link to="/login" className="underline font-semibold">login</Link> para comprar e vender.</>
+        }
       </p>
 
-      {/* Barra de busca dentro do banner */}
       <div className="mt-6 relative max-w-lg">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
