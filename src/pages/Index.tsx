@@ -1,16 +1,32 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+/**
+ * HOME PAGE — Página principal do AgroConnect
+ * 
+ * EXPLICAÇÃO:
+ * - Esta é a página que o usuário vê ao abrir o app (rota "/").
+ * - Ela compõe (combina) vários componentes menores:
+ *   Layout → estrutura geral (sidebar + content area)
+ *   HeroBanner → banner de boas-vindas com busca
+ *   CategoryList → ícones de categorias
+ *   FeaturedProducts → grid de produtos em destaque
+ * 
+ * - Essa abordagem é chamada de "composição de componentes" — um dos 
+ *   princípios fundamentais do React. Cada componente faz UMA coisa bem feita,
+ *   e a página apenas os organiza na ordem correta.
+ */
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+import Layout from "@/components/Layout";
+import HeroBanner from "@/components/HeroBanner";
+import CategoryList from "@/components/CategoryList";
+import FeaturedProducts from "@/components/FeaturedProducts";
+
+const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
-    </div>
+    <Layout>
+      <HeroBanner />
+      <CategoryList />
+      <FeaturedProducts />
+    </Layout>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
