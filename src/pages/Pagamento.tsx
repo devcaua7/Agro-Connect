@@ -1,65 +1,101 @@
 /**
- * PAGAMENTO PAGE — Simulação de pagamento com Mercado Pago
+ * PAGAMENTO PAGE — Pagamento com QR Code PIX (timer de 5 minutos)
  * 
  * EXPLICAÇÃO:
- * - Esta página simula o fluxo de pagamento do Mercado Pago.
- * - Em produção, aqui seria integrada a SDK do Mercado Pago para
- *   processar pagamentos reais (PIX, cartão, boleto).
- * - Por enquanto, simula o processo para fins de demonstração no TCC.
- * - O pedido é atualizado no banco com status "paid" ao confirmar.
+ * - Agora busca o pedido pelo ID do pedido (não mais pelo productId).
+ * - O QR Code PIX tem um timer de 5 minutos. Se expirar, o pedido é cancelado.
+ * - useEffect com setInterval cria um countdown (contagem regressiva).
+ * - O valor só é "liberado" ao vendedor quando o comprador confirmar recebimento
+ *   (na página de perfil, botão "Confirmar Recebimento").
+ * - Suporta PIX, cartão e boleto como métodos.
  */
 
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
-import { CreditCard, QrCode, FileText, CheckCircle } from "lucide-react";
+import { CreditCard, QrCode, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const QR_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
 
 const Pagamento = () => {
-  const { productId } = useParams<{ productId: string }>();
+  const { orderId } = useParams<{ orderId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "card" | "boleto">("pix");
   const [processing, setProcessing] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(QR_TIMEOUT_MS);
+  const [timerStarted, setTimerStarted] = useState(false);
 
-  // Busca o pedido mais recente para este produto
+  // Busca o pedido pelo ID
   const { data: order } = useQuery({
-    queryKey: ["order", productId, user?.id],
+    queryKey: ["order", orderId],
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
         .select("*, products(name, price, price_unit, image_url)")
-        .eq("product_id", productId!)
-        .eq("buyer_id", user!.id)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(1)
+        .eq("id", orderId!)
         .maybeSingle();
       return data;
     },
-    enabled: !!productId && !!user,
+    enabled: !!orderId && !!user,
   });
+
+  // Timer de 5 minutos para o QR Code
+  useEffect(() => {
+    if (paymentMethod !== "pix" || paid || expired) return;
+    if (!timerStarted) {
+      setTimerStarted(true);
+      setTimeLeft(QR_TIMEOUT_MS);
+    }
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1000) {
+          clearInterval(interval);
+          setExpired(true);
+          // Cancela o pedido automaticamente
+          if (order?.id) {
+            supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+          }
+          return 0;
+        }
+        return prev - 1000;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [paymentMethod, paid, expired, timerStarted, order?.id]);
+
+  const minutes = Math.floor(timeLeft / 60000);
+  const seconds = Math.floor((timeLeft % 60000) / 1000);
 
   // Simula o pagamento
   const processPayment = useMutation({
     mutationFn: async () => {
+      if (expired) throw new Error("QR Code expirado");
       setProcessing(true);
-      // Simula delay de processamento (em produção seria a API do Mercado Pago)
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const { error } = await supabase
         .from("orders")
-        .update({ status: "paid", payment_method: "mercado_pago" })
+        .update({
+          status: "paid",
+          payment_method: paymentMethod === "pix" ? "mercado_pago_pix" : paymentMethod === "card" ? "mercado_pago_cartao" : "mercado_pago_boleto",
+        })
         .eq("id", order!.id);
       if (error) throw error;
     },
     onSuccess: () => {
       setPaid(true);
       setProcessing(false);
+      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
       toast.success("Pagamento confirmado!");
     },
     onError: () => {
@@ -68,6 +104,28 @@ const Pagamento = () => {
     },
   });
 
+  // Tela de QR expirado
+  if (expired && !paid) {
+    return (
+      <Layout>
+        <div className="px-4 md:px-8 pt-8 max-w-md mx-auto text-center">
+          <AlertTriangle className="w-16 h-16 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-foreground mb-2">QR Code Expirado</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            O tempo de 5 minutos expirou e o pedido foi cancelado automaticamente.
+          </p>
+          <button
+            onClick={() => navigate("/")}
+            className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
+                       hover:opacity-90 active:scale-[0.97] transition-all"
+          >
+            Voltar ao Início
+          </button>
+        </div>
+      </Layout>
+    );
+  }
+
   if (paid) {
     return (
       <Layout>
@@ -75,15 +133,19 @@ const Pagamento = () => {
           <div className="animate-fade-in-up">
             <CheckCircle className="w-16 h-16 text-primary mx-auto mb-4" />
             <h2 className="text-xl font-bold text-foreground mb-2">Pagamento Confirmado!</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Seu pedido foi processado com sucesso. O vendedor será notificado.
+            <p className="text-sm text-muted-foreground mb-2">
+              Seu pedido foi processado com sucesso.
+            </p>
+            <p className="text-xs text-muted-foreground mb-6 bg-secondary/50 p-3 rounded-lg">
+              💡 O valor será liberado ao vendedor somente após você confirmar o recebimento do produto
+              na aba "Meus Pedidos" do seu perfil.
             </p>
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/perfil")}
               className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
                          hover:opacity-90 active:scale-[0.97] transition-all"
             >
-              Voltar ao Início
+              Ver Meus Pedidos
             </button>
           </div>
         </div>
@@ -95,7 +157,7 @@ const Pagamento = () => {
     return (
       <Layout>
         <div className="px-4 md:px-8 pt-8 text-center">
-          <p className="text-muted-foreground">Nenhum pedido pendente encontrado.</p>
+          <p className="text-muted-foreground">Pedido não encontrado.</p>
           <button onClick={() => navigate("/")} className="mt-4 text-primary font-medium hover:underline">
             Voltar ao Início
           </button>
@@ -111,7 +173,7 @@ const Pagamento = () => {
       <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-md mx-auto">
         <h2 className="text-xl font-bold text-foreground mb-6">Pagamento</h2>
 
-        {/* Resumo do pedido */}
+        {/* Resumo */}
         <div className="p-4 bg-card rounded-xl border border-border mb-6">
           <h3 className="text-sm font-semibold text-foreground mb-2">Resumo do Pedido</h3>
           <p className="text-sm text-muted-foreground">{product?.name}</p>
@@ -151,20 +213,27 @@ const Pagamento = () => {
           </div>
         </div>
 
-        {/* PIX QR Code simulado */}
+        {/* PIX QR Code com timer */}
         {paymentMethod === "pix" && (
           <div className="p-4 bg-card rounded-xl border border-border mb-6 text-center">
             <div className="w-32 h-32 bg-secondary rounded-lg mx-auto mb-3 flex items-center justify-center">
               <QrCode className="w-16 h-16 text-muted-foreground" />
             </div>
-            <p className="text-xs text-muted-foreground">QR Code PIX (simulado)</p>
+            <p className="text-xs text-muted-foreground mb-2">QR Code PIX (simulado)</p>
+            {/* Timer */}
+            <div className={`flex items-center justify-center gap-1 text-sm font-medium
+              ${timeLeft < 60000 ? "text-destructive" : "text-muted-foreground"}`}>
+              <Clock className="w-4 h-4" />
+              <span className="tabular-nums">{String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Expira em 5 minutos</p>
           </div>
         )}
 
         {/* Botão pagar */}
         <button
           onClick={() => processPayment.mutate()}
-          disabled={processing}
+          disabled={processing || expired}
           className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
                      hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2
                      disabled:opacity-50"
@@ -180,7 +249,7 @@ const Pagamento = () => {
         </button>
 
         <p className="text-xs text-muted-foreground text-center mt-3">
-          Simulação de pagamento Mercado Pago para fins acadêmicos.
+          Simulação de pagamento Mercado Pago. O valor será liberado ao vendedor após confirmação de recebimento.
         </p>
       </div>
     </Layout>

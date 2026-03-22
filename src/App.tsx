@@ -2,9 +2,10 @@
  * APP — Componente raiz da aplicação
  * 
  * EXPLICAÇÃO:
- * - AuthProvider envolve tudo para compartilhar o estado de autenticação.
- * - Novas rotas: /login, /produto/:id, /pagamento/:productId.
- * - O ":id" na rota é um parâmetro dinâmico — useParams() o captura no componente.
+ * - AuthProvider: compartilha estado de login globalmente.
+ * - CartProvider: compartilha estado do carrinho globalmente.
+ * - Rotas: /, /login, /buscar, /anunciar, /chat, /perfil, /produto/:id,
+ *          /carrinho, /pagamento/:orderId.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
+import { CartProvider } from "@/context/CartContext";
 import Index from "./pages/Index";
 import Buscar from "./pages/Buscar";
 import Anunciar from "./pages/Anunciar";
@@ -21,6 +23,7 @@ import Perfil from "./pages/Perfil";
 import Login from "./pages/Login";
 import ProductDetail from "./pages/ProductDetail";
 import Pagamento from "./pages/Pagamento";
+import Carrinho from "./pages/Carrinho";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,17 +35,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/buscar" element={<Buscar />} />
-            <Route path="/anunciar" element={<Anunciar />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/perfil" element={<Perfil />} />
-            <Route path="/produto/:id" element={<ProductDetail />} />
-            <Route path="/pagamento/:productId" element={<Pagamento />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <CartProvider>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/buscar" element={<Buscar />} />
+              <Route path="/anunciar" element={<Anunciar />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/perfil" element={<Perfil />} />
+              <Route path="/produto/:id" element={<ProductDetail />} />
+              <Route path="/pagamento/:orderId" element={<Pagamento />} />
+              <Route path="/carrinho" element={<Carrinho />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </CartProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

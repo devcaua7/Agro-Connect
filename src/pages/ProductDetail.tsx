@@ -1,40 +1,39 @@
 /**
- * PRODUCT DETAIL — Página de detalhes do produto
+ * PRODUCT DETAIL — Detalhes do produto com chat e carrinho
  * 
  * EXPLICAÇÃO:
- * - useParams() extrai o ID do produto da URL (ex: /produto/abc123).
- * - useQuery (React Query) busca os dados do produto no Supabase.
- *   Ele cacheia o resultado e atualiza automaticamente.
- * - O usuário pode curtir, avaliar e comprar o produto nesta página.
- * - Se o usuário for o dono do anúncio, ele pode excluir.
- * - useMutation gerencia operações de escrita (curtir, avaliar, excluir).
+ * - Agora inclui botão "Conversar com Vendedor" que abre o chat.
+ * - Botão "Adicionar ao Carrinho" usa CartContext.
+ * - O sistema de curtidas e avaliações continua funcionando.
+ * - Se o usuário for o dono, pode excluir o anúncio.
  */
 
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 import Layout from "@/components/Layout";
-import { Heart, Star, Trash2, ShoppingCart, ArrowLeft, MapPin } from "lucide-react";
+import { Heart, Star, Trash2, ShoppingCart, ArrowLeft, MapPin, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { addItem } = useCart();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [quantity, setQuantity] = useState(1);
 
-  // Busca o produto pelo ID
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, profiles!products_user_id_fkey(display_name, city)")
+        .select("*")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -43,7 +42,20 @@ const ProductDetail = () => {
     enabled: !!id,
   });
 
-  // Verifica se o usuário já curtiu
+  // Busca perfil do vendedor separadamente
+  const { data: sellerProfile } = useQuery({
+    queryKey: ["seller-profile", product?.user_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name, city")
+        .eq("user_id", product!.user_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!product?.user_id,
+  });
+
   const { data: userLike } = useQuery({
     queryKey: ["like", id, user?.id],
     queryFn: async () => {
@@ -58,7 +70,6 @@ const ProductDetail = () => {
     enabled: !!id && !!user,
   });
 
-  // Conta total de curtidas
   const { data: likesCount } = useQuery({
     queryKey: ["likes-count", id],
     queryFn: async () => {
@@ -71,20 +82,33 @@ const ProductDetail = () => {
     enabled: !!id,
   });
 
-  // Busca avaliações
   const { data: reviews } = useQuery({
     queryKey: ["reviews", id],
     queryFn: async () => {
       const { data } = await supabase
         .from("reviews")
-        .select("*, profiles!reviews_user_id_fkey(display_name)")
+        .select("*")
         .eq("product_id", id!);
       return data ?? [];
     },
     enabled: !!id,
   });
 
-  // Mutation para curtir/descurtir
+  // Busca nomes dos avaliadores
+  const { data: reviewProfiles } = useQuery({
+    queryKey: ["review-profiles", id],
+    queryFn: async () => {
+      const userIds = reviews?.map((r) => r.user_id) ?? [];
+      if (userIds.length === 0) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds);
+      return data ?? [];
+    },
+    enabled: !!reviews && reviews.length > 0,
+  });
+
   const toggleLike = useMutation({
     mutationFn: async () => {
       if (userLike) {
@@ -99,7 +123,6 @@ const ProductDetail = () => {
     },
   });
 
-  // Mutation para excluir produto
   const deleteProduct = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("products").delete().eq("id", id!);
@@ -112,7 +135,6 @@ const ProductDetail = () => {
     onError: () => toast.error("Erro ao excluir anúncio."),
   });
 
-  // Mutation para avaliar
   const submitReview = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("reviews").insert({
@@ -138,27 +160,25 @@ const ProductDetail = () => {
     },
   });
 
-  // Mutation para comprar (criar pedido)
-  const createOrder = useMutation({
-    mutationFn: async () => {
-      if (!product) throw new Error("Produto não encontrado");
-      const { error } = await supabase.from("orders").insert({
-        buyer_id: user!.id,
-        product_id: id!,
-        seller_id: product.user_id,
-        quantity,
-        total_price: Number(product.price) * quantity,
-        status: "pending",
-        payment_method: "mercado_pago",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Pedido criado! Redirecionando para pagamento...");
-      navigate("/pagamento/" + id);
-    },
-    onError: () => toast.error("Erro ao criar pedido."),
-  });
+  const handleAddToCart = () => {
+    if (!user) { navigate("/login"); return; }
+    if (!product) return;
+    addItem({
+      productId: product.id,
+      name: product.name,
+      price: Number(product.price),
+      priceUnit: product.price_unit || "kg",
+      quantity,
+      imageUrl: product.image_url,
+      sellerId: product.user_id,
+    });
+    toast.success("Adicionado ao carrinho!");
+  };
+
+  const handleChat = () => {
+    if (!user) { navigate("/login"); return; }
+    navigate(`/chat?seller=${product!.user_id}&product=${product!.id}`);
+  };
 
   const isOwner = user?.id === product?.user_id;
   const avgRating = reviews?.length
@@ -188,12 +208,11 @@ const ProductDetail = () => {
   return (
     <Layout>
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-3xl">
-        {/* Botão voltar */}
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4 active:scale-[0.97]">
           <ArrowLeft className="w-4 h-4" /> Voltar
         </button>
 
-        {/* Imagem do produto */}
+        {/* Imagem */}
         <div className="aspect-[4/3] rounded-xl overflow-hidden bg-secondary mb-4">
           {product.image_url ? (
             <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
@@ -202,7 +221,7 @@ const ProductDetail = () => {
           )}
         </div>
 
-        {/* Informações */}
+        {/* Info */}
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-bold text-foreground">{product.name}</h2>
@@ -210,9 +229,7 @@ const ProductDetail = () => {
               R$ {Number(product.price).toFixed(2).replace(".", ",")}/{product.price_unit}
             </p>
           </div>
-
           <div className="flex items-center gap-2">
-            {/* Botão curtir */}
             <button
               onClick={() => {
                 if (!user) { navigate("/login"); return; }
@@ -223,14 +240,10 @@ const ProductDetail = () => {
               <Heart className={`w-5 h-5 ${userLike ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
               <span className="text-sm font-medium">{likesCount}</span>
             </button>
-
-            {/* Botão excluir (apenas dono) */}
             {isOwner && (
               <button
                 onClick={() => {
-                  if (confirm("Tem certeza que deseja excluir este anúncio?")) {
-                    deleteProduct.mutate();
-                  }
+                  if (confirm("Tem certeza que deseja excluir este anúncio?")) deleteProduct.mutate();
                 }}
                 className="px-3 py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 active:scale-[0.95] transition-all"
               >
@@ -240,15 +253,14 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* Localização e vendedor */}
+        {/* Local e vendedor */}
         <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
           <MapPin className="w-4 h-4" />
-          <span>{product.city || "Localização não informada"}</span>
+          <span>{product.city || sellerProfile?.city || "Localização não informada"}</span>
           <span className="mx-1">·</span>
-          <span>Vendedor: {(product as any).profiles?.display_name || "Anônimo"}</span>
+          <span>Vendedor: {sellerProfile?.display_name || "Anônimo"}</span>
         </div>
 
-        {/* Média de avaliações */}
         {avgRating && (
           <div className="flex items-center gap-1 mt-2">
             <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -257,7 +269,6 @@ const ProductDetail = () => {
           </div>
         )}
 
-        {/* Descrição */}
         {product.description && (
           <div className="mt-4">
             <h3 className="font-semibold text-foreground mb-1">Descrição</h3>
@@ -265,16 +276,15 @@ const ProductDetail = () => {
           </div>
         )}
 
-        {/* Categoria */}
         <span className="inline-block mt-3 text-xs bg-secondary text-secondary-foreground px-3 py-1 rounded-full">
           {product.category}
         </span>
 
-        {/* Comprar — apenas se NÃO for o dono */}
-        {!isOwner && user && (
-          <div className="mt-6 p-4 bg-card rounded-xl border border-border">
-            <h3 className="font-semibold text-foreground mb-3">Comprar</h3>
-            <div className="flex items-center gap-3 mb-3">
+        {/* Ações do comprador: carrinho + chat */}
+        {!isOwner && (
+          <div className="mt-6 p-4 bg-card rounded-xl border border-border space-y-4">
+            {/* Quantidade */}
+            <div className="flex items-center gap-3">
               <label className="text-sm text-muted-foreground">Quantidade:</label>
               <input
                 type="number"
@@ -285,39 +295,43 @@ const ProductDetail = () => {
               />
               <span className="text-sm text-muted-foreground">{product.price_unit}</span>
             </div>
-            <p className="text-sm text-muted-foreground mb-3">
+            <p className="text-sm text-muted-foreground">
               Total: <strong className="text-primary">R$ {(Number(product.price) * quantity).toFixed(2).replace(".", ",")}</strong>
             </p>
-            <button
-              onClick={() => createOrder.mutate()}
-              disabled={createOrder.isPending}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
-                         hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              Comprar com Mercado Pago
-            </button>
+
+            {/* Botões */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddToCart}
+                className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
+                           hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Adicionar ao Carrinho
+              </button>
+              <button
+                onClick={handleChat}
+                className="py-3 px-4 rounded-xl border border-primary text-primary font-semibold text-sm
+                           hover:bg-primary/5 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Chat
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Seção de avaliações */}
+        {/* Avaliações */}
         <div className="mt-8 mb-8">
           <h3 className="font-semibold text-foreground mb-4">Avaliações</h3>
 
-          {/* Formulário de avaliação */}
           {user && !isOwner && (
             <div className="p-4 bg-card rounded-xl border border-border mb-4">
               <p className="text-sm font-medium text-foreground mb-2">Deixe sua avaliação</p>
               <div className="flex gap-1 mb-3">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    className="active:scale-[0.9] transition-transform"
-                  >
-                    <Star
-                      className={`w-6 h-6 ${star <= rating ? "fill-yellow-400 text-yellow-400" : "text-border"}`}
-                    />
+                  <button key={star} onClick={() => setRating(star)} className="active:scale-[0.9] transition-transform">
+                    <Star className={`w-6 h-6 ${star <= rating ? "fill-yellow-400 text-yellow-400" : "text-border"}`} />
                   </button>
                 ))}
               </div>
@@ -331,6 +345,7 @@ const ProductDetail = () => {
               />
               <button
                 onClick={() => {
+                  if (!user) { navigate("/login"); return; }
                   if (rating === 0) { toast.error("Selecione uma nota."); return; }
                   submitReview.mutate();
                 }}
@@ -343,26 +358,26 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {/* Lista de avaliações */}
           {reviews && reviews.length > 0 ? (
             <div className="space-y-3">
-              {reviews.map((review) => (
-                <div key={review.id} className="p-3 bg-card rounded-xl border border-border">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-foreground">
-                      {(review as any).profiles?.display_name || "Usuário"}
-                    </span>
-                    <div className="flex">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} className={`w-3 h-3 ${s <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-border"}`} />
-                      ))}
+              {reviews.map((review) => {
+                const rp = reviewProfiles?.find((p) => p.user_id === review.user_id);
+                return (
+                  <div key={review.id} className="p-3 bg-card rounded-xl border border-border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-foreground">
+                        {rp?.display_name || "Usuário"}
+                      </span>
+                      <div className="flex">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star key={s} className={`w-3 h-3 ${s <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-border"}`} />
+                        ))}
+                      </div>
                     </div>
+                    {review.comment && <p className="text-sm text-muted-foreground">{review.comment}</p>}
                   </div>
-                  {review.comment && (
-                    <p className="text-sm text-muted-foreground">{review.comment}</p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Nenhuma avaliação ainda.</p>
