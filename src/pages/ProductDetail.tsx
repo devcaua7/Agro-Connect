@@ -280,8 +280,8 @@ const ProductDetail = () => {
           {product.category}
         </span>
 
-        {/* Ações do comprador: carrinho + chat */}
-        {!isOwner && (
+        {/* Ações de compra: carrinho + chat (vendedor também pode comprar de outros) */}
+        {(
           <div className="mt-6 p-4 bg-card rounded-xl border border-border space-y-4">
             {/* Quantidade */}
             <div className="flex items-center gap-3">
