@@ -87,7 +87,7 @@ const FeaturedProducts = () => {
             className="opacity-0 animate-fade-in-up"
             style={{ animationDelay: `${index * 80 + 400}ms` }}
           >
-            <ProductCard {...product} />
+            <ProductCard id={product.id} image={product.image} name={product.name} price={product.price} location={product.location} category={product.category} />
           </div>
         ))}
       </div>

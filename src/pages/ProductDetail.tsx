@@ -325,7 +325,7 @@ const ProductDetail = () => {
         <div className="mt-8 mb-8">
           <h3 className="font-semibold text-foreground mb-4">Avaliações</h3>
 
-          {user && !isOwner && (
+          {user && (
             <div className="p-4 bg-card rounded-xl border border-border mb-4">
               <p className="text-sm font-medium text-foreground mb-2">Deixe sua avaliação</p>
               <div className="flex gap-1 mb-3">
