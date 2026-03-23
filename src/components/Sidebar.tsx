@@ -17,6 +17,7 @@ const menuItems = [
   { icon: Home, label: "Início", path: "/" },
   { icon: Search, label: "Buscar", path: "/buscar" },
   { icon: PlusCircle, label: "Anunciar", path: "/anunciar" },
+  { icon: ShoppingCart, label: "Carrinho", path: "/carrinho" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
   { icon: User, label: "Perfil", path: "/perfil" },
 ];
