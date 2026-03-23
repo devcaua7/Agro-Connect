@@ -87,6 +87,7 @@ const Buscar = () => {
                 price={`R$ ${Number(p.price).toFixed(2).replace(".", ",")}/${p.price_unit}`}
                 image={p.image_url || "/placeholder.svg"}
                 location={p.city || ""}
+                category={p.category}
               />
             ))}
           </div>
