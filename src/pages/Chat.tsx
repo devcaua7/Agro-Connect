@@ -1,15 +1,3 @@
-/**
- * CHAT PAGE — Conversas em tempo real entre comprador e vendedor
- * 
- * EXPLICAÇÃO:
- * - Lista conversas existentes agrupadas por produto + outro usuário.
- * - Ao clicar numa conversa, abre o chat inline.
- * - Usa Supabase Realtime para receber mensagens novas sem recarregar.
- * - supabase.channel() cria um canal de escuta em tempo real.
- * - 'postgres_changes' escuta INSERT na tabela messages.
- * - O chat é agrupado por product_id + o outro usuário (conversa única).
- */
-
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +25,15 @@ interface Conversation {
   lastDate: string;
 }
 
+const quickMessages = [
+  "Olá, ainda está disponível?",
+  "Qual o prazo de entrega?",
+  "Aceita negociar o preço?",
+  "Pode enviar mais fotos?",
+  "Qual a quantidade mínima?",
+  "Entrega em qual região?",
+];
+
 const Chat = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -46,7 +43,6 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Se veio da página de produto com params
   const paramSellerId = searchParams.get("seller");
   const paramProductId = searchParams.get("product");
 
@@ -56,7 +52,6 @@ const Chat = () => {
     }
   }, [paramSellerId, paramProductId, user]);
 
-  // Busca todas as mensagens do usuário
   const { data: allMessages } = useQuery({
     queryKey: ["my-messages", user?.id],
     queryFn: async () => {
@@ -70,10 +65,7 @@ const Chat = () => {
     enabled: !!user,
   });
 
-  // Agrupa em conversas
-  const conversations: Conversation[] = [];
   const convoMap = new Map<string, Message[]>();
-
   allMessages?.forEach((msg) => {
     const otherId = msg.sender_id === user?.id ? msg.receiver_id : msg.sender_id;
     const key = `${msg.product_id}_${otherId}`;
@@ -81,7 +73,6 @@ const Chat = () => {
     convoMap.get(key)!.push(msg);
   });
 
-  // Busca nomes de perfis e produtos
   const { data: profiles } = useQuery({
     queryKey: ["chat-profiles"],
     queryFn: async () => {
@@ -100,6 +91,7 @@ const Chat = () => {
     enabled: !!user,
   });
 
+  const conversations: Conversation[] = [];
   convoMap.forEach((msgs, key) => {
     const [productId, otherUserId] = key.split("_");
     const last = msgs[msgs.length - 1];
@@ -115,7 +107,6 @@ const Chat = () => {
     });
   });
 
-  // Adiciona conversa vinda dos params (se nova)
   if (paramSellerId && paramProductId && !convoMap.has(`${paramProductId}_${paramSellerId}`)) {
     const profile = profiles?.find((p) => p.user_id === paramSellerId);
     const product = products?.find((p) => p.id === paramProductId);
@@ -133,7 +124,6 @@ const Chat = () => {
 
   conversations.sort((a, b) => new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime());
 
-  // Mensagens da conversa ativa
   const activeMessages = activeConvo
     ? allMessages?.filter(
         (m) =>
@@ -142,7 +132,6 @@ const Chat = () => {
       ) ?? []
     : [];
 
-  // Realtime
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -151,23 +140,22 @@ const Chat = () => {
         queryClient.invalidateQueries({ queryKey: ["my-messages"] });
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user, queryClient]);
 
-  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages.length]);
 
-  const sendMessage = async () => {
-    if (!newMsg.trim() || !activeConvo || !user) return;
+  const sendMessage = async (content?: string) => {
+    const msg = content || newMsg.trim();
+    if (!msg || !activeConvo || !user) return;
     setSending(true);
     const { error } = await supabase.from("messages").insert({
       sender_id: user.id,
       receiver_id: activeConvo.otherUserId,
       product_id: activeConvo.productId,
-      content: newMsg.trim(),
+      content: msg,
     });
     if (error) {
       toast.error("Erro ao enviar mensagem.");
@@ -188,14 +176,10 @@ const Chat = () => {
     );
   }
 
-  // Vista de conversa ativa
   if (activeConvo) {
-    const otherName = conversations.find(
+    const convo = conversations.find(
       (c) => c.otherUserId === activeConvo.otherUserId && c.productId === activeConvo.productId
-    )?.otherUserName || "Usuário";
-    const productName = conversations.find(
-      (c) => c.productId === activeConvo.productId
-    )?.productName || "Produto";
+    );
 
     return (
       <Layout>
@@ -206,15 +190,15 @@ const Chat = () => {
               <ArrowLeft className="w-5 h-5 text-muted-foreground" />
             </button>
             <div>
-              <p className="text-sm font-semibold text-foreground">{otherName}</p>
-              <p className="text-xs text-muted-foreground">{productName}</p>
+              <p className="text-sm font-semibold text-foreground">{convo?.otherUserName || "Usuário"}</p>
+              <p className="text-xs text-muted-foreground">{convo?.productName || "Produto"}</p>
             </div>
           </div>
 
-          {/* Mensagens */}
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
             {activeMessages.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-8">
+              <p className="text-sm text-muted-foreground text-center py-4">
                 Envie a primeira mensagem!
               </p>
             )}
@@ -240,6 +224,23 @@ const Chat = () => {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Quick messages */}
+          <div className="px-4 py-2 border-t border-border overflow-x-auto">
+            <div className="flex gap-2">
+              {quickMessages.map((qm) => (
+                <button
+                  key={qm}
+                  onClick={() => sendMessage(qm)}
+                  disabled={sending}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-full bg-secondary text-xs text-foreground
+                             hover:bg-secondary/80 active:scale-[0.95] transition-all whitespace-nowrap"
+                >
+                  {qm}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Input */}
           <div className="px-4 py-3 border-t border-border flex gap-2">
             <input
@@ -251,7 +252,7 @@ const Chat = () => {
                          placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={sending || !newMsg.trim()}
               className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground active:scale-[0.95] transition-all
                          disabled:opacity-50"
@@ -264,7 +265,7 @@ const Chat = () => {
     );
   }
 
-  // Lista de conversas
+  // Conversation list
   return (
     <Layout>
       <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">

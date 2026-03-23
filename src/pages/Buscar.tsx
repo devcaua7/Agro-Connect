@@ -1,39 +1,105 @@
-/**
- * BUSCAR PAGE — Página de busca de produtos
- * 
- * EXPLICAÇÃO:
- * - Página dedicada para buscar produtos com filtros.
- * - Por enquanto é uma estrutura básica que será expandida com:
- *   filtros por categoria, preço, localização etc.
- * - O input de busca usa "focus:ring-2" para acessibilidade visual —
- *   mostra ao usuário qual elemento está selecionado.
- */
-
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
-import { Search } from "lucide-react";
+import ProductCard from "@/components/ProductCard";
+import { Search, Filter } from "lucide-react";
+
+const categorias = ["Todas", "Verduras", "Frutas", "Legumes", "Grãos"];
 
 const Buscar = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("q") || "");
+  const [categoria, setCategoria] = useState(searchParams.get("categoria") || "Todas");
+
+  useEffect(() => {
+    const cat = searchParams.get("categoria");
+    if (cat && categorias.includes(cat)) setCategoria(cat);
+  }, [searchParams]);
+
+  const { data: products, isLoading } = useQuery({
+    queryKey: ["search-products", search, categoria],
+    queryFn: async () => {
+      let query = supabase.from("products").select("*").eq("is_active", true);
+      if (categoria !== "Todas") query = query.eq("category", categoria);
+      if (search.trim()) query = query.ilike("name", `%${search.trim()}%`);
+      const { data } = await query.order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const handleCategoryClick = (cat: string) => {
+    setCategoria(cat);
+    const params = new URLSearchParams();
+    if (cat !== "Todas") params.set("categoria", cat);
+    if (search.trim()) params.set("q", search.trim());
+    setSearchParams(params);
+  };
+
   return (
     <Layout>
       <div className="px-4 md:px-8 pt-6 md:pt-8">
-        <h2 className="text-2xl font-bold text-foreground mb-6">Buscar Produtos</h2>
-        
-        <div className="relative max-w-xl">
+        <h2 className="text-2xl font-bold text-foreground mb-4">Buscar Produtos</h2>
+
+        {/* Search input */}
+        <div className="relative max-w-xl mb-4">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Digite o nome do produto..."
             className="w-full pl-11 pr-4 py-3 rounded-xl bg-card border border-border text-foreground text-sm
-                       placeholder:text-muted-foreground
-                       focus:outline-none focus:ring-2 focus:ring-primary/30
-                       transition-shadow duration-200"
+                       placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
           />
         </div>
 
-        <div className="mt-12 flex flex-col items-center text-center text-muted-foreground">
-          <Search className="w-12 h-12 mb-4 opacity-30" />
-          <p className="text-sm">Pesquise por verduras, frutas, legumes e mais.</p>
+        {/* Category filters */}
+        <div className="flex gap-2 flex-wrap mb-6">
+          {categorias.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => handleCategoryClick(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all active:scale-[0.95]
+                ${categoria === cat
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
+
+        {/* Results */}
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : products && products.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {products.map((p) => (
+              <ProductCard
+                key={p.id}
+                id={p.id}
+                name={p.name}
+                price={`R$ ${Number(p.price).toFixed(2).replace(".", ",")}/${p.price_unit}`}
+                image={p.image_url || "/placeholder.svg"}
+                location={p.city || ""}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center text-center text-muted-foreground py-12">
+            <Filter className="w-12 h-12 mb-4 opacity-30" />
+            <p className="text-sm">
+              {search || categoria !== "Todas"
+                ? "Nenhum produto encontrado para esta busca."
+                : "Pesquise por verduras, frutas, legumes e mais."}
+            </p>
+          </div>
+        )}
       </div>
     </Layout>
   );
