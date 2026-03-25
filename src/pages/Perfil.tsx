@@ -27,31 +27,34 @@ const Perfil = () => {
     enabled: !!user,
   });
 
-  const displayName = profile?.display_name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Usuário";
+  const displayName = profile?.display_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Usuário";
   const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const { data: myProducts } = useQuery({
-    queryKey: ["my-products", user.id],
+    queryKey: ["my-products", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("products").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      const { data } = await supabase.from("products").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
       return data ?? [];
     },
+    enabled: !!user,
   });
 
   const { data: myOrders } = useQuery({
-    queryKey: ["my-orders", user.id],
+    queryKey: ["my-orders", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("orders").select("*, products(name)").eq("buyer_id", user.id).order("created_at", { ascending: false });
+      const { data } = await supabase.from("orders").select("*, products(name)").eq("buyer_id", user!.id).order("created_at", { ascending: false });
       return data ?? [];
     },
+    enabled: !!user,
   });
 
   const { data: receivedOrders } = useQuery({
-    queryKey: ["received-orders", user.id],
+    queryKey: ["received-orders", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("orders").select("*, products(name)").eq("seller_id", user.id).order("created_at", { ascending: false });
+      const { data } = await supabase.from("orders").select("*, products(name)").eq("seller_id", user!.id).order("created_at", { ascending: false });
       return data ?? [];
     },
+    enabled: !!user,
   });
 
   const deleteProduct = useMutation({
