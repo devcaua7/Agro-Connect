@@ -105,7 +105,7 @@ const Perfil = () => {
     if (!file) return;
     setUploading(true);
     const fileExt = file.name.split(".").pop();
-    const fileName = `${user.id}/avatar.${fileExt}`;
+    const fileName = `${user!.id}/avatar.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from("product-images")
@@ -118,7 +118,7 @@ const Perfil = () => {
     }
 
     const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
-    await supabase.from("profiles").update({ avatar_url: urlData.publicUrl }).eq("user_id", user.id);
+    await supabase.from("profiles").update({ avatar_url: urlData.publicUrl }).eq("user_id", user!.id);
     toast.success("Foto atualizada!");
     queryClient.invalidateQueries({ queryKey: ["my-profile"] });
     setUploading(false);
