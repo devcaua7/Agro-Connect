@@ -19,11 +19,12 @@ const Perfil = () => {
   const [uploading, setUploading] = useState(false);
 
   const { data: profile } = useQuery({
-    queryKey: ["my-profile", user.id],
+    queryKey: ["my-profile", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("*").eq("user_id", user!.id).maybeSingle();
       return data;
     },
+    enabled: !!user,
   });
 
   const displayName = profile?.display_name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Usuário";
