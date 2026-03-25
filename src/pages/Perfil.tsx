@@ -18,11 +18,6 @@ const Perfil = () => {
   const [editPhone, setEditPhone] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  if (!user) {
-    navigate("/login");
-    return null;
-  }
-
   const { data: profile } = useQuery({
     queryKey: ["my-profile", user.id],
     queryFn: async () => {
