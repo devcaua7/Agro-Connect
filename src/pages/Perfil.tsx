@@ -137,6 +137,11 @@ const Perfil = () => {
     navigate("/login");
   };
 
+  if (!user) {
+    navigate("/login");
+    return null;
+  }
+
   const statusLabels: Record<string, string> = {
     pending: "Pendente", paid: "Pago", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado",
   };
