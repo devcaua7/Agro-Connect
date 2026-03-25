@@ -32,10 +32,19 @@ const Carrinho = () => {
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
+    
+    // Check for demo items
+    const hasDemoItems = items.some(item => item.productId.startsWith("demo-"));
+    if (hasDemoItems) {
+      toast.success("Pedido de demonstração criado com sucesso! Em produção, os pedidos seriam salvos no banco.");
+      clearCart();
+      navigate("/perfil");
+      return;
+    }
+
     setProcessing(true);
 
     try {
-      // Cria um pedido para cada item do carrinho
       const orders = items.map((item) => ({
         buyer_id: user.id,
         product_id: item.productId,
@@ -51,11 +60,9 @@ const Carrinho = () => {
       if (error) throw error;
 
       if (paymentType === "online" && data && data.length > 0) {
-        // Redireciona para pagamento com o ID do primeiro pedido
         clearCart();
         navigate("/pagamento/" + data[0].id);
       } else {
-        // Pagamento na entrega — pedido criado com sucesso
         clearCart();
         toast.success("Pedidos criados! O vendedor será notificado.");
         navigate("/perfil");

@@ -1,22 +1,12 @@
-/**
- * LOGIN PAGE — Tela de autenticação (login e cadastro)
- * 
- * EXPLICAÇÃO:
- * - useState controla qual aba está ativa (login ou cadastro).
- * - Os inputs são "controlados" — seu valor vem do state do React.
- * - Ao submeter o formulário, chamamos signIn ou signUp do AuthContext.
- * - useNavigate redireciona o usuário após login bem-sucedido.
- * - toast() mostra notificações de sucesso/erro ao usuário.
- */
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Leaf } from "lucide-react";
 
 const Login = () => {
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -28,7 +18,20 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    if (isSignUp) {
+    if (mode === "forgot") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Email de recuperação enviado! Verifique sua caixa de entrada.");
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (mode === "signup") {
       const { error } = await signUp(email, password, displayName);
       if (error) {
         toast.error(error.message);
@@ -50,7 +53,6 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8 animate-fade-in-up">
           <div className="inline-flex items-center gap-2 mb-4">
             <Leaf className="w-8 h-8 text-primary" />
@@ -60,13 +62,12 @@ const Login = () => {
             </h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Crie sua conta para começar" : "Entre na sua conta"}
+            {mode === "login" ? "Entre na sua conta" : mode === "signup" ? "Crie sua conta para começar" : "Recupere sua senha"}
           </p>
         </div>
 
-        {/* Formulário */}
         <form onSubmit={handleSubmit} className="space-y-4 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
-          {isSignUp && (
+          {mode === "signup" && (
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Nome</label>
               <input
@@ -94,19 +95,30 @@ const Login = () => {
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Senha</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
-              required
-              minLength={6}
-              className="w-full px-4 py-3 rounded-xl bg-card border border-border text-foreground text-sm
-                         placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
+          {mode !== "forgot" && (
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Senha</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                required
+                minLength={6}
+                className="w-full px-4 py-3 rounded-xl bg-card border border-border text-foreground text-sm
+                           placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              {mode === "login" && (
+                <button
+                  type="button"
+                  onClick={() => setMode("forgot")}
+                  className="text-xs text-primary hover:underline mt-1.5"
+                >
+                  Esqueceu a senha?
+                </button>
+              )}
+            </div>
+          )}
 
           <button
             type="submit"
@@ -114,19 +126,16 @@ const Login = () => {
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
                        hover:opacity-90 active:scale-[0.97] transition-all duration-200 disabled:opacity-50"
           >
-            {loading ? "Carregando..." : isSignUp ? "Criar Conta" : "Entrar"}
+            {loading ? "Carregando..." : mode === "login" ? "Entrar" : mode === "signup" ? "Criar Conta" : "Enviar Email de Recuperação"}
           </button>
         </form>
 
-        {/* Alternar entre login e cadastro */}
         <p className="text-center text-sm text-muted-foreground mt-6 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-          {isSignUp ? "Já tem conta? " : "Não tem conta? "}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-primary font-semibold hover:underline"
-          >
-            {isSignUp ? "Faça login" : "Cadastre-se"}
-          </button>
+          {mode === "login" ? (
+            <>Não tem conta? <button onClick={() => setMode("signup")} className="text-primary font-semibold hover:underline">Cadastre-se</button></>
+          ) : (
+            <>Já tem conta? <button onClick={() => setMode("login")} className="text-primary font-semibold hover:underline">Faça login</button></>
+          )}
         </p>
       </div>
     </div>

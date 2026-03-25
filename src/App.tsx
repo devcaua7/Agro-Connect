@@ -1,13 +1,3 @@
-/**
- * APP — Componente raiz da aplicação
- * 
- * EXPLICAÇÃO:
- * - AuthProvider: compartilha estado de login globalmente.
- * - CartProvider: compartilha estado do carrinho globalmente.
- * - Rotas: /, /login, /buscar, /anunciar, /chat, /perfil, /produto/:id,
- *          /carrinho, /pagamento/:orderId.
- */
-
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -21,6 +11,7 @@ import Anunciar from "./pages/Anunciar";
 import Chat from "./pages/Chat";
 import Perfil from "./pages/Perfil";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import ProductDetail from "./pages/ProductDetail";
 import Pagamento from "./pages/Pagamento";
 import Carrinho from "./pages/Carrinho";
@@ -39,6 +30,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/buscar" element={<Buscar />} />
               <Route path="/anunciar" element={<Anunciar />} />
               <Route path="/chat" element={<Chat />} />
