@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import ProductCard from "@/components/ProductCard";
+import { allCategories } from "@/components/CategoryList";
 import { Search, Filter } from "lucide-react";
 
-const categorias = ["Todas", "Verduras", "Frutas", "Legumes", "Grãos"];
+const categorias = ["Todas", ...allCategories.map(c => c.value)];
 
 const Buscar = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -16,6 +17,8 @@ const Buscar = () => {
   useEffect(() => {
     const cat = searchParams.get("categoria");
     if (cat && categorias.includes(cat)) setCategoria(cat);
+    const q = searchParams.get("q");
+    if (q) setSearch(q);
   }, [searchParams]);
 
   const { data: products, isLoading } = useQuery({
@@ -42,7 +45,6 @@ const Buscar = () => {
       <div className="px-4 md:px-8 pt-6 md:pt-8">
         <h2 className="text-2xl font-bold text-foreground mb-4">Buscar Produtos</h2>
 
-        {/* Search input */}
         <div className="relative max-w-xl mb-4">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -55,13 +57,12 @@ const Buscar = () => {
           />
         </div>
 
-        {/* Category filters */}
         <div className="flex gap-2 flex-wrap mb-6">
           {categorias.map((cat) => (
             <button
               key={cat}
               onClick={() => handleCategoryClick(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all active:scale-[0.95]
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-[0.95]
                 ${categoria === cat
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary text-muted-foreground hover:bg-secondary/80"
@@ -72,7 +73,6 @@ const Buscar = () => {
           ))}
         </div>
 
-        {/* Results */}
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
