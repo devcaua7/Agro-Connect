@@ -90,7 +90,7 @@ const Perfil = () => {
         display_name: editName || undefined,
         city: editCity || undefined,
         phone: editPhone || undefined,
-      }).eq("user_id", user.id);
+      }).eq("user_id", user!.id);
       if (error) throw error;
     },
     onSuccess: () => {
