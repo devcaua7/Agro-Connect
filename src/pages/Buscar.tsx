@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import ProductCard from "@/components/ProductCard";
 import { allCategories } from "@/components/CategoryList";
+import { mockProducts } from "@/components/FeaturedProducts";
 import { Search, Filter } from "lucide-react";
 
 const categorias = ["Todas", ...allCategories.map(c => c.value)];
@@ -21,7 +22,7 @@ const Buscar = () => {
     if (q) setSearch(q);
   }, [searchParams]);
 
-  const { data: products, isLoading } = useQuery({
+  const { data: dbProducts, isLoading } = useQuery({
     queryKey: ["search-products", search, categoria],
     queryFn: async () => {
       let query = supabase.from("products").select("*").eq("is_active", true);
@@ -31,6 +32,33 @@ const Buscar = () => {
       return data ?? [];
     },
   });
+
+  // Filtra mockProducts pela categoria e busca para sempre ter resultados
+  const filteredMocks = mockProducts.filter((p) => {
+    const matchCategory = categoria === "Todas" || p.category === categoria;
+    const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase());
+    return matchCategory && matchSearch;
+  });
+
+  // Combina produtos reais do banco + mocks filtrados
+  const allProducts = [
+    ...(dbProducts ?? []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: `R$ ${Number(p.price).toFixed(2).replace(".", ",")}/${p.price_unit}`,
+      image: p.image_url || "/placeholder.svg",
+      location: p.city || "",
+      category: p.category,
+    })),
+    ...filteredMocks.map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      image: p.image,
+      location: p.location,
+      category: p.category,
+    })),
+  ];
 
   const handleCategoryClick = (cat: string) => {
     setCategoria(cat);
@@ -77,16 +105,16 @@ const Buscar = () => {
           <div className="flex justify-center py-12">
             <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
           </div>
-        ) : products && products.length > 0 ? (
+        ) : allProducts.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {products.map((p) => (
+            {allProducts.map((p) => (
               <ProductCard
                 key={p.id}
                 id={p.id}
                 name={p.name}
-                price={`R$ ${Number(p.price).toFixed(2).replace(".", ",")}/${p.price_unit}`}
-                image={p.image_url || "/placeholder.svg"}
-                location={p.city || ""}
+                price={p.price}
+                image={p.image}
+                location={p.location}
                 category={p.category}
               />
             ))}
@@ -94,11 +122,7 @@ const Buscar = () => {
         ) : (
           <div className="flex flex-col items-center text-center text-muted-foreground py-12">
             <Filter className="w-12 h-12 mb-4 opacity-30" />
-            <p className="text-sm">
-              {search || categoria !== "Todas"
-                ? "Nenhum produto encontrado para esta busca."
-                : "Pesquise por verduras, frutas, legumes e mais."}
-            </p>
+            <p className="text-sm">Nenhum produto encontrado para esta busca.</p>
           </div>
         )}
       </div>
