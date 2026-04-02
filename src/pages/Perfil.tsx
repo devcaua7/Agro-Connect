@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { Star, Settings, LogOut, ChevronRight, Trash2, CheckCircle, Camera, Edit2, X } from "lucide-react";
+import { Star, Settings, LogOut, ChevronRight, Trash2, CheckCircle, Camera, Edit2, X, ShoppingCart, Package } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
