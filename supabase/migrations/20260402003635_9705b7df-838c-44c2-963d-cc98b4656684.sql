@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN delivery_code TEXT DEFAULT NULL;

@@ -83,6 +83,7 @@ export type Database = {
           buyer_confirmed_receipt: boolean | null
           buyer_id: string
           created_at: string
+          delivery_code: string | null
           id: string
           payment_method: string | null
           payment_type: string | null
@@ -98,6 +99,7 @@ export type Database = {
           buyer_confirmed_receipt?: boolean | null
           buyer_id: string
           created_at?: string
+          delivery_code?: string | null
           id?: string
           payment_method?: string | null
           payment_type?: string | null
@@ -113,6 +115,7 @@ export type Database = {
           buyer_confirmed_receipt?: boolean | null
           buyer_id?: string
           created_at?: string
+          delivery_code?: string | null
           id?: string
           payment_method?: string | null
           payment_type?: string | null

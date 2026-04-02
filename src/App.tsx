@@ -15,6 +15,8 @@ import ResetPassword from "./pages/ResetPassword";
 import ProductDetail from "./pages/ProductDetail";
 import Pagamento from "./pages/Pagamento";
 import Carrinho from "./pages/Carrinho";
+import MinhasCompras from "./pages/MinhasCompras";
+import MinhasVendas from "./pages/MinhasVendas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +40,8 @@ const App = () => (
               <Route path="/produto/:id" element={<ProductDetail />} />
               <Route path="/pagamento/:orderId" element={<Pagamento />} />
               <Route path="/carrinho" element={<Carrinho />} />
+              <Route path="/minhas-compras" element={<MinhasCompras />} />
+              <Route path="/minhas-vendas" element={<MinhasVendas />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </CartProvider>

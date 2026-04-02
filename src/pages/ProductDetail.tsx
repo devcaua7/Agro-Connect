@@ -216,7 +216,7 @@ const ProductDetail = () => {
   const handleChat = () => {
     if (!user) { navigate("/login"); return; }
     if (isDemo) {
-      toast.info("Chat de simulação — em produção conectaria ao vendedor real.");
+      navigate(`/chat?seller=demo-seller&product=${product!.id}&demo=true&productName=${encodeURIComponent(product!.name)}`);
       return;
     }
     navigate(`/chat?seller=${product!.user_id}&product=${product!.id}`);
