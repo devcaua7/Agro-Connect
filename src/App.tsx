@@ -15,6 +15,8 @@ import ResetPassword from "./pages/ResetPassword";
 import ProductDetail from "./pages/ProductDetail";
 import Pagamento from "./pages/Pagamento";
 import Carrinho from "./pages/Carrinho";
+import MinhasCompras from "./pages/MinhasCompras";
+import MinhasVendas from "./pages/MinhasVendas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
