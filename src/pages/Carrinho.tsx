@@ -45,6 +45,8 @@ const Carrinho = () => {
     setProcessing(true);
 
     try {
+      const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
       const orders = items.map((item) => ({
         buyer_id: user.id,
         product_id: item.productId,
@@ -54,6 +56,7 @@ const Carrinho = () => {
         status: "pending",
         payment_type: paymentType,
         payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+        delivery_code: generateCode(),
       }));
 
       const { data, error } = await supabase.from("orders").insert(orders).select();

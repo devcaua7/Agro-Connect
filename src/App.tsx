@@ -40,6 +40,8 @@ const App = () => (
               <Route path="/produto/:id" element={<ProductDetail />} />
               <Route path="/pagamento/:orderId" element={<Pagamento />} />
               <Route path="/carrinho" element={<Carrinho />} />
+              <Route path="/minhas-compras" element={<MinhasCompras />} />
+              <Route path="/minhas-vendas" element={<MinhasVendas />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </CartProvider>
