@@ -33,13 +33,38 @@ const Carrinho = () => {
   const handleCheckout = async () => {
     if (items.length === 0) return;
     
-    // Check for demo items
-    const hasDemoItems = items.some(item => item.productId.startsWith("demo-"));
-    if (hasDemoItems) {
-      toast.success("Pedido de demonstração criado com sucesso! Em produção, os pedidos seriam salvos no banco.");
-      clearCart();
-      navigate("/perfil");
-      return;
+    // Itens demo são salvos no localStorage (não no banco, pois não têm FK válida)
+    const demoItems = items.filter(item => item.productId.startsWith("demo-"));
+    const realItems = items.filter(item => !item.productId.startsWith("demo-"));
+
+    if (demoItems.length > 0) {
+      const { addDemoOrder, generateDeliveryCode, generateDemoId } = await import("@/utils/demoOrders");
+      demoItems.forEach((item) => {
+        addDemoOrder({
+          id: generateDemoId(),
+          product_id: item.productId,
+          product_name: item.name,
+          product_image: item.imageUrl,
+          product_price_unit: item.priceUnit,
+          buyer_id: user.id,
+          seller_id: item.sellerId,
+          seller_name: "Produtor Demo",
+          quantity: item.quantity,
+          total_price: item.price * item.quantity,
+          status: "paid",
+          delivery_code: generateDeliveryCode(),
+          payment_type: paymentType,
+          payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+          created_at: new Date().toISOString(),
+        });
+      });
+
+      if (realItems.length === 0) {
+        clearCart();
+        toast.success("Compra realizada! Veja seus pedidos em Minhas Compras.");
+        navigate("/minhas-compras");
+        return;
+      }
     }
 
     setProcessing(true);
