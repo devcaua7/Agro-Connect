@@ -17,20 +17,16 @@ const LocalSetupScreen = () => (
       <p className="text-sm font-semibold text-primary">AgroConnect</p>
       <h1 className="mt-2 text-2xl font-bold">Configuração local pendente</h1>
       <p className="mt-3 text-muted-foreground">
-        O app abriu, mas as variáveis do backend não foram encontradas. Isso acontece
-        quando o projeto é baixado e executado no VSCode sem criar o arquivo de ambiente local.
+        Crie um arquivo <strong>.env.local</strong> na raiz do projeto com as variáveis abaixo
+        (ou copie o arquivo <strong>.env.example</strong>) e rode <strong>npm run dev</strong> novamente.
+        Veja o passo a passo completo em <strong>RODAR_LOCALMENTE.md</strong>.
       </p>
 
-      <div className="mt-5 rounded-md bg-muted p-4 font-mono text-sm text-muted-foreground overflow-x-auto">
-        <p>VITE_SUPABASE_URL=sua_url_do_backend</p>
-        <p>VITE_SUPABASE_PUBLISHABLE_KEY=sua_chave_publica</p>
-        <p>VITE_SUPABASE_PROJECT_ID=seu_project_id</p>
+      <div className="mt-5 rounded-md bg-muted p-4 font-mono text-xs text-muted-foreground overflow-x-auto">
+        <p>VITE_SUPABASE_URL=https://rytcgdbzjytjodekcmeg.supabase.co</p>
+        <p>VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOi...</p>
+        <p>VITE_SUPABASE_PROJECT_ID=rytcgdbzjytjodekcmeg</p>
       </div>
-
-      <p className="mt-4 text-sm text-muted-foreground">
-        Crie um arquivo <strong>.env.local</strong> na raiz do projeto, preencha esses valores,
-        pare o servidor e rode novamente <strong>npm run dev</strong>.
-      </p>
     </section>
   </main>
 );
