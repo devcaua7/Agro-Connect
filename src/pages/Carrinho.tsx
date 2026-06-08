@@ -135,11 +135,6 @@ const Carrinho = () => {
     navigator.clipboard.writeText(code);
     toast.success("Código copiado!");
   };
-      toast.error("Erro ao finalizar compra.");
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   return (
     <Layout>
