@@ -116,7 +116,7 @@ const Anunciar = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Preço *</label>
-              <input type="text" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Ex: 5.00" required
+              <input type="text" inputMode="numeric" value={price} onChange={handlePriceChange} placeholder="R$ 0,00" required
                 className="w-full px-4 py-3 rounded-xl bg-card border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div>
@@ -126,6 +126,7 @@ const Anunciar = () => {
                 <option value="kg">por kg</option>
                 <option value="un">por unidade</option>
                 <option value="cx">por caixa</option>
+                <option value="sc">por saco</option>
                 <option value="dz">por dúzia</option>
                 <option value="lt">por litro</option>
               </select>
