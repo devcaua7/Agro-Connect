@@ -44,70 +44,97 @@ const Carrinho = () => {
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
-    
-    // Itens demo são salvos no localStorage (não no banco, pois não têm FK válida)
-    const demoItems = items.filter(item => item.productId.startsWith("demo-"));
-    const realItems = items.filter(item => !item.productId.startsWith("demo-"));
 
-    if (demoItems.length > 0) {
-      const { addDemoOrder, generateDeliveryCode, generateDemoId } = await import("@/utils/demoOrders");
-      demoItems.forEach((item) => {
-        addDemoOrder({
-          id: generateDemoId(),
-          product_id: item.productId,
-          product_name: item.name,
-          product_image: item.imageUrl,
-          product_price_unit: item.priceUnit,
-          buyer_id: user.id,
-          seller_id: item.sellerId,
-          seller_name: "Produtor Demo",
-          quantity: item.quantity,
-          total_price: item.price * item.quantity,
-          status: "paid",
-          delivery_code: generateDeliveryCode(),
-          payment_type: paymentType,
-          payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
-          created_at: new Date().toISOString(),
-        });
-      });
-
-      if (realItems.length === 0) {
-        clearCart();
-        toast.success("Compra realizada! Veja seus pedidos em Minhas Compras.");
-        navigate("/minhas-compras");
-        return;
-      }
-    }
+    const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
+    const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
+    const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
 
     setProcessing(true);
 
     try {
-      const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
-
-      const orders = items.map((item) => ({
-        buyer_id: user.id,
-        product_id: item.productId,
-        seller_id: item.sellerId,
+      // Build per-item confirmations (used for "delivery" payment)
+      const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
+        code: generateCode(),
+        productId: item.productId,
+        productName: item.name,
+        imageUrl: item.imageUrl,
+        sellerId: item.sellerId,
         quantity: item.quantity,
-        total_price: item.price * item.quantity,
-        status: "pending",
-        payment_type: paymentType,
-        payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
-        delivery_code: generateCode(),
+        priceUnit: item.priceUnit,
+        totalPrice: item.price * item.quantity,
       }));
 
-      const { data, error } = await supabase.from("orders").insert(orders).select();
-      if (error) throw error;
+      // Save demo items to localStorage
+      if (demoItems.length > 0) {
+        const { addDemoOrder, generateDemoId } = await import("@/utils/demoOrders");
+        demoItems.forEach((item) => {
+          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+          addDemoOrder({
+            id: generateDemoId(),
+            product_id: item.productId,
+            product_name: item.name,
+            product_image: item.imageUrl,
+            product_price_unit: item.priceUnit,
+            buyer_id: user.id,
+            seller_id: item.sellerId,
+            seller_name: "Produtor Demo",
+            quantity: item.quantity,
+            total_price: item.price * item.quantity,
+            status: paymentType === "online" ? "paid" : "pending",
+            delivery_code: conf.code,
+            payment_type: paymentType,
+            payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+            created_at: new Date().toISOString(),
+          });
+        });
+      }
 
-      if (paymentType === "online" && data && data.length > 0) {
+      // Save real items to DB
+      let firstRealOrderId: string | null = null;
+      if (realItems.length > 0) {
+        const orders = realItems.map((item) => {
+          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+          return {
+            buyer_id: user.id,
+            product_id: item.productId,
+            seller_id: item.sellerId,
+            quantity: item.quantity,
+            total_price: item.price * item.quantity,
+            status: "pending",
+            payment_type: paymentType,
+            payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+            delivery_code: conf.code,
+          };
+        });
+        const { data, error } = await supabase.from("orders").insert(orders).select();
+        if (error) throw error;
+        if (data && data.length > 0) firstRealOrderId = data[0].id;
+      }
+
+      if (paymentType === "online") {
         clearCart();
-        navigate("/pagamento/" + data[0].id);
+        if (firstRealOrderId) {
+          navigate("/pagamento/" + firstRealOrderId);
+        } else {
+          toast.success("Compra realizada! Veja seus pedidos em Minhas Compras.");
+          navigate("/minhas-compras");
+        }
       } else {
+        // Pagamento na entrega — mostrar códigos e botão de chat
+        setConfirmations(itemConfirmations);
         clearCart();
-        toast.success("Pedidos criados! O vendedor será notificado.");
-        navigate("/perfil");
       }
     } catch {
+      toast.error("Erro ao finalizar compra.");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success("Código copiado!");
+  };
       toast.error("Erro ao finalizar compra.");
     } finally {
       setProcessing(false);
