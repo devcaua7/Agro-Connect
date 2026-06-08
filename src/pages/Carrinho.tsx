@@ -136,12 +136,104 @@ const Carrinho = () => {
     toast.success("Código copiado!");
   };
 
+  if (confirmations) {
+    return (
+      <Layout>
+        <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+              <CheckCircle2 className="w-7 h-7 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Pedido confirmado!</h2>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              Pagamento será feito na entrega. Combine com o vendedor e apresente o código abaixo no momento da entrega.
+            </p>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            {confirmations.map((c) => (
+              <div key={c.code} className="p-4 bg-card rounded-xl border border-border">
+                <div className="flex gap-3 mb-3">
+                  <div className="w-14 h-14 rounded-lg bg-secondary overflow-hidden flex-shrink-0">
+                    {c.imageUrl ? (
+                      <img src={c.imageUrl} alt={c.productName} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
+                        Sem img
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{c.productName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.quantity} {c.priceUnit} · R$ {c.totalPrice.toFixed(2).replace(".", ",")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-3">
+                  <p className="text-[11px] text-muted-foreground mb-1">Código de entrega</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xl font-bold text-primary tracking-[0.3em] tabular-nums">{c.code}</span>
+                    <button
+                      onClick={() => copyCode(c.code)}
+                      className="p-2 rounded-lg hover:bg-secondary active:scale-[0.95] transition-all"
+                      aria-label="Copiar código"
+                    >
+                      <Copy className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() =>
+                    navigate(
+                      `/chat?seller=${encodeURIComponent(c.sellerId)}&product=${encodeURIComponent(
+                        c.productId
+                      )}&productName=${encodeURIComponent(c.productName)}${
+                        c.sellerId.startsWith("demo-") || c.productId.startsWith("demo-") ? "&demo=true" : ""
+                      }`
+                    )
+                  }
+                  className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
+                             hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Falar com vendedor sobre este produto
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate("/minhas-compras")}
+              className="py-3 rounded-xl bg-secondary text-foreground font-medium text-sm hover:bg-secondary/80 active:scale-[0.97] transition-all"
+            >
+              Minhas Compras
+            </button>
+            <button
+              onClick={() => {
+                setConfirmations(null);
+                navigate("/");
+              }}
+              className="py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 active:scale-[0.97] transition-all"
+            >
+              Continuar comprando
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">
         <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
           <ShoppingCart className="w-5 h-5" /> Carrinho
         </h2>
+
 
         {items.length === 0 ? (
           <div className="text-center py-16">
