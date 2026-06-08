@@ -58,7 +58,8 @@ const Anunciar = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !price || !category) {
+    const parsedPrice = parsePrice(price);
+    if (!name || !parsedPrice || isNaN(parsedPrice) || !category) {
       toast.error("Preencha os campos obrigatórios.");
       return;
     }
