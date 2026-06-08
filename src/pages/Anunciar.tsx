@@ -29,6 +29,25 @@ const Anunciar = () => {
     return null;
   }
 
+  const formatBRL = (digits: string) => {
+    const n = Number(digits) / 100;
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  };
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    if (!digits) {
+      setPrice("");
+      return;
+    }
+    setPrice(formatBRL(digits));
+  };
+
+  const parsePrice = (formatted: string) => {
+    const digits = formatted.replace(/\D/g, "");
+    return digits ? Number(digits) / 100 : NaN;
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
