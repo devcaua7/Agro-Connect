@@ -14,9 +14,20 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
-import { Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck } from "lucide-react";
+import { Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck, MessageCircle, Copy, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+
+interface DeliveryConfirmation {
+  code: string;
+  productId: string;
+  productName: string;
+  imageUrl: string | null;
+  sellerId: string;
+  quantity: number;
+  priceUnit: string;
+  totalPrice: number;
+}
 
 const Carrinho = () => {
   const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
@@ -24,6 +35,7 @@ const Carrinho = () => {
   const navigate = useNavigate();
   const [paymentType, setPaymentType] = useState<"online" | "delivery">("online");
   const [processing, setProcessing] = useState(false);
+  const [confirmations, setConfirmations] = useState<DeliveryConfirmation[] | null>(null);
 
   if (!user) {
     navigate("/login");
