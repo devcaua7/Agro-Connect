@@ -1,12 +1,11 @@
 /**
  * CARRINHO PAGE — Página do carrinho de compras
- * 
- * EXPLICAÇÃO:
- * - Lista todos os itens adicionados ao carrinho via CartContext.
- * - O usuário pode alterar quantidades ou remover itens.
- * - Opção "Pagar pelo site" (online) ou "Pagar na entrega" (delivery).
- * - Ao finalizar, cria os pedidos no banco e redireciona ao pagamento
- *   ou confirma pedido (se pagamento na entrega).
+ *
+ * FLUXO UNIFICADO:
+ * 1. Lista itens → escolhe forma de pagamento (online ou na entrega)
+ * 2. Se ONLINE: mostra tela de opções (PIX / Cartão / Boleto) com simulação
+ *    → depois mostra confirmação com código + botão de chat por produto
+ * 3. Se ENTREGA: vai direto para confirmação com código + chat por produto
  */
 
 import { useNavigate } from "react-router-dom";
@@ -14,7 +13,10 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
-import { Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck, MessageCircle, Copy, CheckCircle2 } from "lucide-react";
+import {
+  Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck, MessageCircle,
+  Copy, CheckCircle2, QrCode, FileText, ArrowLeft,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -29,12 +31,17 @@ interface DeliveryConfirmation {
   totalPrice: number;
 }
 
+type Step = "cart" | "payment-options" | "confirmation";
+type OnlineMethod = "pix" | "card" | "boleto";
+
 const Carrinho = () => {
   const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [paymentType, setPaymentType] = useState<"online" | "delivery">("online");
+  const [onlineMethod, setOnlineMethod] = useState<OnlineMethod>("pix");
   const [processing, setProcessing] = useState(false);
+  const [step, setStep] = useState<Step>("cart");
   const [confirmations, setConfirmations] = useState<DeliveryConfirmation[] | null>(null);
 
   if (!user) {
@@ -42,17 +49,25 @@ const Carrinho = () => {
     return null;
   }
 
-  const handleCheckout = async () => {
+  const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
+  // Etapa 1: clicar em "Ir para Pagamento" ou "Confirmar Pedido"
+  const handleCartContinue = () => {
     if (items.length === 0) return;
+    if (paymentType === "online") {
+      setStep("payment-options");
+    } else {
+      finalizeOrder("delivery");
+    }
+  };
 
-    const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
-    const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
-    const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
-
+  // Etapa 2: finalizar (cria pedidos, gera códigos, mostra confirmação)
+  const finalizeOrder = async (mode: "online" | "delivery") => {
     setProcessing(true);
-
     try {
-      // Build per-item confirmations (used for "delivery" payment)
+      const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
+      const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
+
       const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
         code: generateCode(),
         productId: item.productId,
@@ -64,11 +79,19 @@ const Carrinho = () => {
         totalPrice: item.price * item.quantity,
       }));
 
-      // Save demo items to localStorage
+      // Demo orders → localStorage
       if (demoItems.length > 0) {
         const { addDemoOrder, generateDemoId } = await import("@/utils/demoOrders");
         demoItems.forEach((item) => {
           const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+          const paymentMethod =
+            mode === "online"
+              ? onlineMethod === "pix"
+                ? "mercado_pago_pix"
+                : onlineMethod === "card"
+                ? "mercado_pago_cartao"
+                : "mercado_pago_boleto"
+              : "na_entrega";
           addDemoOrder({
             id: generateDemoId(),
             product_id: item.productId,
@@ -80,18 +103,25 @@ const Carrinho = () => {
             seller_name: "Produtor Demo",
             quantity: item.quantity,
             total_price: item.price * item.quantity,
-            status: paymentType === "online" ? "paid" : "pending",
+            status: mode === "online" ? "paid" : "pending",
             delivery_code: conf.code,
-            payment_type: paymentType,
-            payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+            payment_type: mode,
+            payment_method: paymentMethod,
             created_at: new Date().toISOString(),
           });
         });
       }
 
-      // Save real items to DB
-      let firstRealOrderId: string | null = null;
+      // Real orders → Supabase
       if (realItems.length > 0) {
+        const paymentMethod =
+          mode === "online"
+            ? onlineMethod === "pix"
+              ? "mercado_pago_pix"
+              : onlineMethod === "card"
+              ? "mercado_pago_cartao"
+              : "mercado_pago_boleto"
+            : "na_entrega";
         const orders = realItems.map((item) => {
           const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
           return {
@@ -100,30 +130,25 @@ const Carrinho = () => {
             seller_id: item.sellerId,
             quantity: item.quantity,
             total_price: item.price * item.quantity,
-            status: "pending",
-            payment_type: paymentType,
-            payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+            status: mode === "online" ? "paid" : "pending",
+            payment_type: mode,
+            payment_method: paymentMethod,
             delivery_code: conf.code,
           };
         });
-        const { data, error } = await supabase.from("orders").insert(orders).select();
+        const { error } = await supabase.from("orders").insert(orders);
         if (error) throw error;
-        if (data && data.length > 0) firstRealOrderId = data[0].id;
       }
 
-      if (paymentType === "online") {
-        clearCart();
-        if (firstRealOrderId) {
-          navigate("/pagamento/" + firstRealOrderId);
-        } else {
-          toast.success("Compra realizada! Veja seus pedidos em Minhas Compras.");
-          navigate("/minhas-compras");
-        }
-      } else {
-        // Pagamento na entrega — mostrar códigos e botão de chat
-        setConfirmations(itemConfirmations);
-        clearCart();
+      // Simula processamento do pagamento online
+      if (mode === "online") {
+        await new Promise((r) => setTimeout(r, 1500));
+        toast.success("Pagamento confirmado!");
       }
+
+      setConfirmations(itemConfirmations);
+      setStep("confirmation");
+      clearCart();
     } catch {
       toast.error("Erro ao finalizar compra.");
     } finally {
@@ -136,7 +161,9 @@ const Carrinho = () => {
     toast.success("Código copiado!");
   };
 
-  if (confirmations) {
+  // ============ TELA DE CONFIRMAÇÃO (código + chat) ============
+  if (step === "confirmation" && confirmations) {
+    const isOnline = paymentType === "online";
     return (
       <Layout>
         <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">
@@ -144,9 +171,13 @@ const Carrinho = () => {
             <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
               <CheckCircle2 className="w-7 h-7 text-primary" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Pedido confirmado!</h2>
+            <h2 className="text-xl font-bold text-foreground">
+              {isOnline ? "Pagamento confirmado!" : "Pedido confirmado!"}
+            </h2>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              Pagamento será feito na entrega. Combine com o vendedor e apresente o código abaixo no momento da entrega.
+              {isOnline
+                ? "Apresente o código abaixo ao vendedor para receber o produto. Você também pode combinar os detalhes pelo chat."
+                : "Pagamento será feito na entrega. Combine com o vendedor e apresente o código abaixo no momento da entrega."}
             </p>
           </div>
 
@@ -215,6 +246,7 @@ const Carrinho = () => {
             <button
               onClick={() => {
                 setConfirmations(null);
+                setStep("cart");
                 navigate("/");
               }}
               className="py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 active:scale-[0.97] transition-all"
@@ -227,13 +259,96 @@ const Carrinho = () => {
     );
   }
 
+  // ============ TELA DE OPÇÕES DE PAGAMENTO (online) ============
+  if (step === "payment-options") {
+    const methods = [
+      { key: "pix" as const, icon: QrCode, label: "PIX", desc: "Aprovação instantânea" },
+      { key: "card" as const, icon: CreditCard, label: "Cartão", desc: "Crédito ou débito" },
+      { key: "boleto" as const, icon: FileText, label: "Boleto", desc: "Até 3 dias úteis" },
+    ];
+    return (
+      <Layout>
+        <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-md mx-auto">
+          <button
+            onClick={() => setStep("cart")}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" /> Voltar ao carrinho
+          </button>
+
+          <h2 className="text-xl font-bold text-foreground mb-6">Pagamento</h2>
+
+          <div className="p-4 bg-card rounded-xl border border-border mb-6">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Resumo</h3>
+            <p className="text-sm text-muted-foreground">
+              {items.length} {items.length === 1 ? "item" : "itens"} no pedido
+            </p>
+            <p className="text-lg font-bold text-primary mt-2">
+              Total: R$ {totalPrice.toFixed(2).replace(".", ",")}
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Método de Pagamento</h3>
+            <div className="space-y-2">
+              {methods.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => setOnlineMethod(m.key)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all active:scale-[0.98]
+                    ${onlineMethod === m.key ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary"}`}
+                >
+                  <m.icon className={`w-5 h-5 ${onlineMethod === m.key ? "text-primary" : "text-muted-foreground"}`} />
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-foreground">{m.label}</p>
+                    <p className="text-xs text-muted-foreground">{m.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {onlineMethod === "pix" && (
+            <div className="p-4 bg-card rounded-xl border border-border mb-6 text-center">
+              <div className="w-32 h-32 bg-secondary rounded-lg mx-auto mb-3 flex items-center justify-center">
+                <QrCode className="w-16 h-16 text-muted-foreground" />
+              </div>
+              <p className="text-xs text-muted-foreground">QR Code PIX (simulado)</p>
+            </div>
+          )}
+
+          <button
+            onClick={() => finalizeOrder("online")}
+            disabled={processing}
+            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
+                       hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2
+                       disabled:opacity-50"
+          >
+            {processing ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full" />
+                Processando...
+              </>
+            ) : (
+              `Pagar R$ ${totalPrice.toFixed(2).replace(".", ",")}`
+            )}
+          </button>
+
+          <p className="text-xs text-muted-foreground text-center mt-3">
+            Simulação de pagamento Mercado Pago.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ============ TELA PRINCIPAL DO CARRINHO ============
   return (
     <Layout>
       <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">
         <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
           <ShoppingCart className="w-5 h-5" /> Carrinho
         </h2>
-
 
         {items.length === 0 ? (
           <div className="text-center py-16">
@@ -248,11 +363,9 @@ const Carrinho = () => {
           </div>
         ) : (
           <>
-            {/* Lista de itens */}
             <div className="space-y-3 mb-6">
               {items.map((item) => (
                 <div key={item.productId} className="flex gap-3 p-3 bg-card rounded-xl border border-border">
-                  {/* Imagem */}
                   <div className="w-16 h-16 rounded-lg bg-secondary overflow-hidden flex-shrink-0">
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
@@ -263,14 +376,12 @@ const Carrinho = () => {
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
                       R$ {item.price.toFixed(2).replace(".", ",")}/{item.priceUnit}
                     </p>
 
-                    {/* Controles de quantidade */}
                     <div className="flex items-center gap-2 mt-2">
                       <button
                         onClick={() => updateQuantity(item.productId, item.quantity - 1)}
@@ -288,7 +399,6 @@ const Carrinho = () => {
                     </div>
                   </div>
 
-                  {/* Preço e remover */}
                   <div className="flex flex-col items-end justify-between">
                     <button
                       onClick={() => removeItem(item.productId)}
@@ -304,7 +414,6 @@ const Carrinho = () => {
               ))}
             </div>
 
-            {/* Forma de pagamento */}
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-foreground mb-3">Forma de pagamento</h3>
               <div className="grid grid-cols-2 gap-2">
@@ -333,7 +442,6 @@ const Carrinho = () => {
               </div>
             </div>
 
-            {/* Total e finalizar */}
             <div className="p-4 bg-card rounded-xl border border-border">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-sm text-muted-foreground">Total ({items.length} {items.length === 1 ? "item" : "itens"})</span>
@@ -342,7 +450,7 @@ const Carrinho = () => {
                 </span>
               </div>
               <button
-                onClick={handleCheckout}
+                onClick={handleCartContinue}
                 disabled={processing}
                 className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
                            hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2
