@@ -14,9 +14,20 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
-import { Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck } from "lucide-react";
+import { Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck, MessageCircle, Copy, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+
+interface DeliveryConfirmation {
+  code: string;
+  productId: string;
+  productName: string;
+  imageUrl: string | null;
+  sellerId: string;
+  quantity: number;
+  priceUnit: string;
+  totalPrice: number;
+}
 
 const Carrinho = () => {
   const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
@@ -24,6 +35,7 @@ const Carrinho = () => {
   const navigate = useNavigate();
   const [paymentType, setPaymentType] = useState<"online" | "delivery">("online");
   const [processing, setProcessing] = useState(false);
+  const [confirmations, setConfirmations] = useState<DeliveryConfirmation[] | null>(null);
 
   if (!user) {
     navigate("/login");
@@ -32,68 +44,85 @@ const Carrinho = () => {
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
-    
-    // Itens demo são salvos no localStorage (não no banco, pois não têm FK válida)
-    const demoItems = items.filter(item => item.productId.startsWith("demo-"));
-    const realItems = items.filter(item => !item.productId.startsWith("demo-"));
 
-    if (demoItems.length > 0) {
-      const { addDemoOrder, generateDeliveryCode, generateDemoId } = await import("@/utils/demoOrders");
-      demoItems.forEach((item) => {
-        addDemoOrder({
-          id: generateDemoId(),
-          product_id: item.productId,
-          product_name: item.name,
-          product_image: item.imageUrl,
-          product_price_unit: item.priceUnit,
-          buyer_id: user.id,
-          seller_id: item.sellerId,
-          seller_name: "Produtor Demo",
-          quantity: item.quantity,
-          total_price: item.price * item.quantity,
-          status: "paid",
-          delivery_code: generateDeliveryCode(),
-          payment_type: paymentType,
-          payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
-          created_at: new Date().toISOString(),
-        });
-      });
-
-      if (realItems.length === 0) {
-        clearCart();
-        toast.success("Compra realizada! Veja seus pedidos em Minhas Compras.");
-        navigate("/minhas-compras");
-        return;
-      }
-    }
+    const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
+    const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
+    const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
 
     setProcessing(true);
 
     try {
-      const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
-
-      const orders = items.map((item) => ({
-        buyer_id: user.id,
-        product_id: item.productId,
-        seller_id: item.sellerId,
+      // Build per-item confirmations (used for "delivery" payment)
+      const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
+        code: generateCode(),
+        productId: item.productId,
+        productName: item.name,
+        imageUrl: item.imageUrl,
+        sellerId: item.sellerId,
         quantity: item.quantity,
-        total_price: item.price * item.quantity,
-        status: "pending",
-        payment_type: paymentType,
-        payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
-        delivery_code: generateCode(),
+        priceUnit: item.priceUnit,
+        totalPrice: item.price * item.quantity,
       }));
 
-      const { data, error } = await supabase.from("orders").insert(orders).select();
-      if (error) throw error;
+      // Save demo items to localStorage
+      if (demoItems.length > 0) {
+        const { addDemoOrder, generateDemoId } = await import("@/utils/demoOrders");
+        demoItems.forEach((item) => {
+          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+          addDemoOrder({
+            id: generateDemoId(),
+            product_id: item.productId,
+            product_name: item.name,
+            product_image: item.imageUrl,
+            product_price_unit: item.priceUnit,
+            buyer_id: user.id,
+            seller_id: item.sellerId,
+            seller_name: "Produtor Demo",
+            quantity: item.quantity,
+            total_price: item.price * item.quantity,
+            status: paymentType === "online" ? "paid" : "pending",
+            delivery_code: conf.code,
+            payment_type: paymentType,
+            payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+            created_at: new Date().toISOString(),
+          });
+        });
+      }
 
-      if (paymentType === "online" && data && data.length > 0) {
+      // Save real items to DB
+      let firstRealOrderId: string | null = null;
+      if (realItems.length > 0) {
+        const orders = realItems.map((item) => {
+          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+          return {
+            buyer_id: user.id,
+            product_id: item.productId,
+            seller_id: item.sellerId,
+            quantity: item.quantity,
+            total_price: item.price * item.quantity,
+            status: "pending",
+            payment_type: paymentType,
+            payment_method: paymentType === "online" ? "mercado_pago" : "na_entrega",
+            delivery_code: conf.code,
+          };
+        });
+        const { data, error } = await supabase.from("orders").insert(orders).select();
+        if (error) throw error;
+        if (data && data.length > 0) firstRealOrderId = data[0].id;
+      }
+
+      if (paymentType === "online") {
         clearCart();
-        navigate("/pagamento/" + data[0].id);
+        if (firstRealOrderId) {
+          navigate("/pagamento/" + firstRealOrderId);
+        } else {
+          toast.success("Compra realizada! Veja seus pedidos em Minhas Compras.");
+          navigate("/minhas-compras");
+        }
       } else {
+        // Pagamento na entrega — mostrar códigos e botão de chat
+        setConfirmations(itemConfirmations);
         clearCart();
-        toast.success("Pedidos criados! O vendedor será notificado.");
-        navigate("/perfil");
       }
     } catch {
       toast.error("Erro ao finalizar compra.");
@@ -102,12 +131,109 @@ const Carrinho = () => {
     }
   };
 
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success("Código copiado!");
+  };
+
+  if (confirmations) {
+    return (
+      <Layout>
+        <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+              <CheckCircle2 className="w-7 h-7 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Pedido confirmado!</h2>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              Pagamento será feito na entrega. Combine com o vendedor e apresente o código abaixo no momento da entrega.
+            </p>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            {confirmations.map((c) => (
+              <div key={c.code} className="p-4 bg-card rounded-xl border border-border">
+                <div className="flex gap-3 mb-3">
+                  <div className="w-14 h-14 rounded-lg bg-secondary overflow-hidden flex-shrink-0">
+                    {c.imageUrl ? (
+                      <img src={c.imageUrl} alt={c.productName} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
+                        Sem img
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{c.productName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.quantity} {c.priceUnit} · R$ {c.totalPrice.toFixed(2).replace(".", ",")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-3">
+                  <p className="text-[11px] text-muted-foreground mb-1">Código de entrega</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xl font-bold text-primary tracking-[0.3em] tabular-nums">{c.code}</span>
+                    <button
+                      onClick={() => copyCode(c.code)}
+                      className="p-2 rounded-lg hover:bg-secondary active:scale-[0.95] transition-all"
+                      aria-label="Copiar código"
+                    >
+                      <Copy className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() =>
+                    navigate(
+                      `/chat?seller=${encodeURIComponent(c.sellerId)}&product=${encodeURIComponent(
+                        c.productId
+                      )}&productName=${encodeURIComponent(c.productName)}${
+                        c.sellerId.startsWith("demo-") || c.productId.startsWith("demo-") ? "&demo=true" : ""
+                      }`
+                    )
+                  }
+                  className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
+                             hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Falar com vendedor sobre este produto
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate("/minhas-compras")}
+              className="py-3 rounded-xl bg-secondary text-foreground font-medium text-sm hover:bg-secondary/80 active:scale-[0.97] transition-all"
+            >
+              Minhas Compras
+            </button>
+            <button
+              onClick={() => {
+                setConfirmations(null);
+                navigate("/");
+              }}
+              className="py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 active:scale-[0.97] transition-all"
+            >
+              Continuar comprando
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">
         <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
           <ShoppingCart className="w-5 h-5" /> Carrinho
         </h2>
+
 
         {items.length === 0 ? (
           <div className="text-center py-16">

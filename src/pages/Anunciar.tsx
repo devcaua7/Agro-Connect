@@ -29,6 +29,25 @@ const Anunciar = () => {
     return null;
   }
 
+  const formatBRL = (digits: string) => {
+    const n = Number(digits) / 100;
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  };
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    if (!digits) {
+      setPrice("");
+      return;
+    }
+    setPrice(formatBRL(digits));
+  };
+
+  const parsePrice = (formatted: string) => {
+    const digits = formatted.replace(/\D/g, "");
+    return digits ? Number(digits) / 100 : NaN;
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -39,7 +58,8 @@ const Anunciar = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !price || !category) {
+    const parsedPrice = parsePrice(price);
+    if (!name || !parsedPrice || isNaN(parsedPrice) || !category) {
       toast.error("Preencha os campos obrigatórios.");
       return;
     }
@@ -65,7 +85,7 @@ const Anunciar = () => {
     const { error } = await supabase.from("products").insert({
       user_id: user.id,
       name,
-      price: parseFloat(price.replace(",", ".")),
+      price: parsedPrice,
       price_unit: priceUnit,
       category,
       description: description || null,
@@ -96,7 +116,7 @@ const Anunciar = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Preço *</label>
-              <input type="text" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Ex: 5.00" required
+              <input type="text" inputMode="numeric" value={price} onChange={handlePriceChange} placeholder="R$ 0,00" required
                 className="w-full px-4 py-3 rounded-xl bg-card border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div>
@@ -106,6 +126,7 @@ const Anunciar = () => {
                 <option value="kg">por kg</option>
                 <option value="un">por unidade</option>
                 <option value="cx">por caixa</option>
+                <option value="sc">por saco</option>
                 <option value="dz">por dúzia</option>
                 <option value="lt">por litro</option>
               </select>
