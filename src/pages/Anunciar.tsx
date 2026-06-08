@@ -85,7 +85,7 @@ const Anunciar = () => {
     const { error } = await supabase.from("products").insert({
       user_id: user.id,
       name,
-      price: parseFloat(price.replace(",", ".")),
+      price: parsedPrice,
       price_unit: priceUnit,
       category,
       description: description || null,
