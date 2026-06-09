@@ -16,6 +16,13 @@ const Perfil = () => {
   const [editName, setEditName] = useState("");
   const [editCity, setEditCity] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editCpf, setEditCpf] = useState("");
+  const [editCep, setEditCep] = useState("");
+  const [editStreet, setEditStreet] = useState("");
+  const [editNumber, setEditNumber] = useState("");
+  const [editComplement, setEditComplement] = useState("");
+  const [editNeighborhood, setEditNeighborhood] = useState("");
+  const [editState, setEditState] = useState("");
   const [uploading, setUploading] = useState(false);
 
   const { data: profile } = useQuery({
