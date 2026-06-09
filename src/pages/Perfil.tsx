@@ -139,11 +139,27 @@ const Perfil = () => {
   };
 
   const startEditing = () => {
-    setEditName(profile?.display_name || displayName);
-    setEditCity(profile?.city || "");
-    setEditPhone(profile?.phone || "");
+    const p: any = profile || {};
+    setEditName(p.display_name || displayName);
+    setEditCity(p.city || "");
+    setEditPhone(p.phone || "");
+    setEditCpf(p.cpf || "");
+    setEditCep(p.cep || "");
+    setEditStreet(p.street || "");
+    setEditNumber(p.number || "");
+    setEditComplement(p.complement || "");
+    setEditNeighborhood(p.neighborhood || "");
+    setEditState(p.state || "");
     setEditing(true);
   };
+
+  const formatCpf = (v: string) =>
+    v.replace(/\D/g, "").slice(0, 11)
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  const formatCep = (v: string) =>
+    v.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2");
 
   const handleLogout = async () => {
     await signOut();
