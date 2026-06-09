@@ -44,6 +44,31 @@ const Carrinho = () => {
   const [step, setStep] = useState<Step>("cart");
   const [confirmations, setConfirmations] = useState<DeliveryConfirmation[] | null>(null);
 
+  // Campos do cartão (exemplo / simulação)
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [installments, setInstallments] = useState(1);
+
+  const formatCardNumber = (v: string) =>
+    v.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
+  const formatExpiry = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 4);
+    return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+  };
+  const fillExample = () => {
+    setCardNumber("4111 1111 1111 1111");
+    setCardName("MARIA DA SILVA");
+    setCardExpiry("12/29");
+    setCardCvv("123");
+  };
+  const isCardValid =
+    cardNumber.replace(/\s/g, "").length === 16 &&
+    cardName.trim().length >= 3 &&
+    cardExpiry.length === 5 &&
+    cardCvv.length >= 3;
+
   if (!user) {
     navigate("/login");
     return null;
@@ -317,18 +342,113 @@ const Carrinho = () => {
             </div>
           )}
 
+          {onlineMethod === "card" && (
+            <div className="p-4 bg-card rounded-xl border border-border mb-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-foreground">Dados do cartão</h4>
+                <button
+                  type="button"
+                  onClick={fillExample}
+                  className="text-[11px] text-primary font-medium hover:underline"
+                >
+                  Usar exemplo
+                </button>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-muted-foreground">Número do cartão</label>
+                <input
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                  placeholder="4111 1111 1111 1111"
+                  inputMode="numeric"
+                  className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm tabular-nums"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-muted-foreground">Nome impresso no cartão</label>
+                <input
+                  value={cardName}
+                  onChange={(e) => setCardName(e.target.value.toUpperCase())}
+                  placeholder="MARIA DA SILVA"
+                  className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm uppercase"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Validade</label>
+                  <input
+                    value={cardExpiry}
+                    onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                    placeholder="MM/AA"
+                    inputMode="numeric"
+                    className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">CVV</label>
+                  <input
+                    value={cardCvv}
+                    onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    placeholder="123"
+                    inputMode="numeric"
+                    className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm tabular-nums"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-muted-foreground">Parcelamento</label>
+                <select
+                  value={installments}
+                  onChange={(e) => setInstallments(Number(e.target.value))}
+                  className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                >
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const n = i + 1;
+                    const value = totalPrice / n;
+                    const label =
+                      n === 1
+                        ? `1x de R$ ${totalPrice.toFixed(2).replace(".", ",")} (à vista)`
+                        : `${n}x de R$ ${value.toFixed(2).replace(".", ",")} sem juros`;
+                    return (
+                      <option key={n} value={n}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <p className="text-[10px] text-muted-foreground text-center pt-1">
+                Ambiente de simulação — nenhum dado real é armazenado.
+              </p>
+            </div>
+          )}
+
+          {onlineMethod === "boleto" && (
+            <div className="p-4 bg-card rounded-xl border border-border mb-6 text-center">
+              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">Boleto será gerado após a confirmação (simulado).</p>
+            </div>
+          )}
+
           <button
             onClick={() => finalizeOrder("online")}
-            disabled={processing}
+            disabled={processing || (onlineMethod === "card" && !isCardValid)}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
                        hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2
-                       disabled:opacity-50"
+                       disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {processing ? (
               <>
                 <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full" />
                 Processando...
               </>
+            ) : onlineMethod === "card" && installments > 1 ? (
+              `Pagar ${installments}x de R$ ${(totalPrice / installments).toFixed(2).replace(".", ",")}`
             ) : (
               `Pagar R$ ${totalPrice.toFixed(2).replace(".", ",")}`
             )}
