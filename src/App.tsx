@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import Configuracoes from "./pages/Configuracoes";
 import Index from "./pages/Index";
 import Buscar from "./pages/Buscar";
 import Anunciar from "./pages/Anunciar";
