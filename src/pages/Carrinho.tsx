@@ -44,6 +44,31 @@ const Carrinho = () => {
   const [step, setStep] = useState<Step>("cart");
   const [confirmations, setConfirmations] = useState<DeliveryConfirmation[] | null>(null);
 
+  // Campos do cartão (exemplo / simulação)
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [installments, setInstallments] = useState(1);
+
+  const formatCardNumber = (v: string) =>
+    v.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
+  const formatExpiry = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 4);
+    return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+  };
+  const fillExample = () => {
+    setCardNumber("4111 1111 1111 1111");
+    setCardName("MARIA DA SILVA");
+    setCardExpiry("12/29");
+    setCardCvv("123");
+  };
+  const isCardValid =
+    cardNumber.replace(/\s/g, "").length === 16 &&
+    cardName.trim().length >= 3 &&
+    cardExpiry.length === 5 &&
+    cardCvv.length >= 3;
+
   if (!user) {
     navigate("/login");
     return null;
