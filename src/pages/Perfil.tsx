@@ -220,21 +220,69 @@ const Perfil = () => {
               <h3 className="text-sm font-semibold text-foreground">Editar Perfil</h3>
               <button onClick={() => setEditing(false)} className="p-1"><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
+
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-1">Conta</p>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Nome</label>
               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Cidade</label>
-              <input type="text" value={editCity} onChange={(e) => setEditCity(e.target.value)} placeholder="Ex: Campinas, SP"
-                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
+                <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="(11) 99999-9999"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">CPF</label>
+                <input type="text" value={editCpf} onChange={(e) => setEditCpf(formatCpf(e.target.value))} placeholder="000.000.000-00"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground tabular-nums" />
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">Endereço</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-1">
+                <label className="text-xs text-muted-foreground block mb-1">CEP</label>
+                <input type="text" value={editCep} onChange={(e) => setEditCep(formatCep(e.target.value))} placeholder="00000-000"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground tabular-nums" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Rua</label>
+                <input type="text" value={editStreet} onChange={(e) => setEditStreet(e.target.value)} placeholder="Av. Brasil"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Número</label>
+                <input type="text" value={editNumber} onChange={(e) => setEditNumber(e.target.value)} placeholder="123"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Complemento</label>
+                <input type="text" value={editComplement} onChange={(e) => setEditComplement(e.target.value)} placeholder="Apto 101"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+              </div>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
-              <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="(11) 99999-9999"
+              <label className="text-xs text-muted-foreground block mb-1">Bairro</label>
+              <input type="text" value={editNeighborhood} onChange={(e) => setEditNeighborhood(e.target.value)} placeholder="Centro"
                 className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
             </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Cidade</label>
+                <input type="text" value={editCity} onChange={(e) => setEditCity(e.target.value)} placeholder="Campinas"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">UF</label>
+                <input type="text" maxLength={2} value={editState} onChange={(e) => setEditState(e.target.value.toUpperCase())} placeholder="SP"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground uppercase" />
+              </div>
+            </div>
+
             <p className="text-xs text-muted-foreground">Email: {user.email} (não editável)</p>
             <button onClick={() => updateProfile.mutate()} disabled={updateProfile.isPending}
               className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50">
@@ -242,6 +290,34 @@ const Perfil = () => {
             </button>
           </div>
         )}
+
+        {/* Dados Pessoais Card */}
+        {!editing && (profile as any) && ((profile as any).cpf || (profile as any).street || (profile as any).cep) && (
+          <div className="mb-6 p-4 bg-card rounded-xl border border-border">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Dados Pessoais</h3>
+            <div className="space-y-1.5 text-sm">
+              {(profile as any).cpf && (
+                <p className="text-muted-foreground"><span className="text-foreground font-medium">CPF:</span> {(profile as any).cpf}</p>
+              )}
+              {(profile as any).phone && (
+                <p className="text-muted-foreground"><span className="text-foreground font-medium">Telefone:</span> {(profile as any).phone}</p>
+              )}
+              {((profile as any).street || (profile as any).cep) && (
+                <p className="text-muted-foreground">
+                  <span className="text-foreground font-medium">Endereço:</span>{" "}
+                  {[
+                    (profile as any).street && `${(profile as any).street}${(profile as any).number ? ", " + (profile as any).number : ""}`,
+                    (profile as any).complement,
+                    (profile as any).neighborhood,
+                    [(profile as any).city, (profile as any).state].filter(Boolean).join(" - "),
+                    (profile as any).cep && `CEP ${(profile as any).cep}`,
+                  ].filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
 
         {/* Meus Anúncios */}
         <div className="mb-6">
