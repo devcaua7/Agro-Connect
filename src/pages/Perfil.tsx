@@ -97,7 +97,14 @@ const Perfil = () => {
         display_name: editName || undefined,
         city: editCity || undefined,
         phone: editPhone || undefined,
-      }).eq("user_id", user!.id);
+        cpf: editCpf || null,
+        cep: editCep || null,
+        street: editStreet || null,
+        number: editNumber || null,
+        complement: editComplement || null,
+        neighborhood: editNeighborhood || null,
+        state: editState || null,
+      } as any).eq("user_id", user!.id);
       if (error) throw error;
     },
     onSuccess: () => {
