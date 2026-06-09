@@ -417,7 +417,7 @@ const Perfil = () => {
             <span className="flex-1 text-sm font-medium text-foreground">Favoritos</span>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-secondary transition-colors text-left active:scale-[0.98]">
+          <button onClick={() => navigate("/configuracoes")} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-secondary transition-colors text-left active:scale-[0.98]">
             <Settings className="w-5 h-5 text-muted-foreground" />
             <span className="flex-1 text-sm font-medium text-foreground">Configurações</span>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
