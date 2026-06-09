@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import Configuracoes from "./pages/Configuracoes";
 import Index from "./pages/Index";
 import Buscar from "./pages/Buscar";
 import Anunciar from "./pages/Anunciar";
@@ -23,31 +25,34 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <CartProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/buscar" element={<Buscar />} />
-              <Route path="/anunciar" element={<Anunciar />} />
-              <Route path="/chat" element={<Chat />} />
-              <Route path="/perfil" element={<Perfil />} />
-              <Route path="/produto/:id" element={<ProductDetail />} />
-              <Route path="/pagamento/:orderId" element={<Pagamento />} />
-              <Route path="/carrinho" element={<Carrinho />} />
-              <Route path="/minhas-compras" element={<MinhasCompras />} />
-              <Route path="/minhas-vendas" element={<MinhasVendas />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </CartProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <CartProvider>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/buscar" element={<Buscar />} />
+                <Route path="/anunciar" element={<Anunciar />} />
+                <Route path="/chat" element={<Chat />} />
+                <Route path="/perfil" element={<Perfil />} />
+                <Route path="/configuracoes" element={<Configuracoes />} />
+                <Route path="/produto/:id" element={<ProductDetail />} />
+                <Route path="/pagamento/:orderId" element={<Pagamento />} />
+                <Route path="/carrinho" element={<Carrinho />} />
+                <Route path="/minhas-compras" element={<MinhasCompras />} />
+                <Route path="/minhas-vendas" element={<MinhasVendas />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </CartProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
