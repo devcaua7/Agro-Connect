@@ -18,7 +18,7 @@ const HeroBanner = () => {
     <div className="bg-hero p-6 md:p-8 animate-fade-in-up">
       <div className="max-w-4xl">
         <h2 className="text-2xl md:text-3xl font-bold text-hero-foreground leading-tight">
-          Olá, {displayName}! 👋
+          Olá, {displayName}! 
         </h2>
         <p className="text-hero-foreground/80 mt-2 text-sm md:text-base">
           {user
