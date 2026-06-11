@@ -97,98 +97,180 @@ const Carrinho = () => {
     }
   };
 
-  // Etapa 2: finalizar (cria pedidos, gera códigos, mostra confirmação)
+  // Cleanup do poller
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, []);
+
+  // Helper: cria orders no Supabase + demo no localStorage. Retorna confirmations e IDs reais.
+  const createOrders = async (mode: "online" | "delivery"): Promise<{
+    confirmations: DeliveryConfirmation[];
+    realOrderIds: string[];
+  }> => {
+    const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
+    const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
+
+    const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
+      code: generateCode(),
+      productId: item.productId,
+      productName: item.name,
+      imageUrl: item.imageUrl,
+      sellerId: item.sellerId,
+      quantity: item.quantity,
+      priceUnit: item.priceUnit,
+      totalPrice: item.price * item.quantity,
+    }));
+
+    const paymentMethod =
+      mode === "online"
+        ? onlineMethod === "pix"
+          ? "abacatepay_pix"
+          : onlineMethod === "card"
+          ? "cartao_simulado"
+          : "boleto_simulado"
+        : "na_entrega";
+
+    // PIX real fica em pending até confirmar; outros online já como paid
+    const initialStatus =
+      mode === "online" && onlineMethod !== "pix" ? "paid" : mode === "online" ? "pending" : "pending";
+
+    // Demo orders → localStorage
+    if (demoItems.length > 0) {
+      const { addDemoOrder, generateDemoId } = await import("@/utils/demoOrders");
+      demoItems.forEach((item) => {
+        const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+        addDemoOrder({
+          id: generateDemoId(),
+          product_id: item.productId,
+          product_name: item.name,
+          product_image: item.imageUrl,
+          product_price_unit: item.priceUnit,
+          buyer_id: user.id,
+          seller_id: item.sellerId,
+          seller_name: "Produtor Demo",
+          quantity: item.quantity,
+          total_price: item.price * item.quantity,
+          status: mode === "online" ? "paid" : "pending",
+          delivery_code: conf.code,
+          payment_type: mode,
+          payment_method: paymentMethod,
+          created_at: new Date().toISOString(),
+        });
+      });
+    }
+
+    let realOrderIds: string[] = [];
+    if (realItems.length > 0) {
+      const orders = realItems.map((item) => {
+        const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+        return {
+          buyer_id: user.id,
+          product_id: item.productId,
+          seller_id: item.sellerId,
+          quantity: item.quantity,
+          total_price: item.price * item.quantity,
+          status: initialStatus,
+          payment_type: mode,
+          payment_method: paymentMethod,
+          delivery_code: conf.code,
+        };
+      });
+      const { data, error } = await supabase.from("orders").insert(orders).select("id");
+      if (error) throw error;
+      realOrderIds = (data ?? []).map((o) => o.id);
+    }
+
+    return { confirmations: itemConfirmations, realOrderIds };
+  };
+
+  // Fluxo geral (entrega, cartão, boleto): cria pedidos e vai pra confirmação
   const finalizeOrder = async (mode: "online" | "delivery") => {
     setProcessing(true);
     try {
-      const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
-      const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
-
-      const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
-        code: generateCode(),
-        productId: item.productId,
-        productName: item.name,
-        imageUrl: item.imageUrl,
-        sellerId: item.sellerId,
-        quantity: item.quantity,
-        priceUnit: item.priceUnit,
-        totalPrice: item.price * item.quantity,
-      }));
-
-      // Demo orders → localStorage
-      if (demoItems.length > 0) {
-        const { addDemoOrder, generateDemoId } = await import("@/utils/demoOrders");
-        demoItems.forEach((item) => {
-          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
-          const paymentMethod =
-            mode === "online"
-              ? onlineMethod === "pix"
-                ? "mercado_pago_pix"
-                : onlineMethod === "card"
-                ? "mercado_pago_cartao"
-                : "mercado_pago_boleto"
-              : "na_entrega";
-          addDemoOrder({
-            id: generateDemoId(),
-            product_id: item.productId,
-            product_name: item.name,
-            product_image: item.imageUrl,
-            product_price_unit: item.priceUnit,
-            buyer_id: user.id,
-            seller_id: item.sellerId,
-            seller_name: "Produtor Demo",
-            quantity: item.quantity,
-            total_price: item.price * item.quantity,
-            status: mode === "online" ? "paid" : "pending",
-            delivery_code: conf.code,
-            payment_type: mode,
-            payment_method: paymentMethod,
-            created_at: new Date().toISOString(),
-          });
-        });
-      }
-
-      // Real orders → Supabase
-      if (realItems.length > 0) {
-        const paymentMethod =
-          mode === "online"
-            ? onlineMethod === "pix"
-              ? "mercado_pago_pix"
-              : onlineMethod === "card"
-              ? "mercado_pago_cartao"
-              : "mercado_pago_boleto"
-            : "na_entrega";
-        const orders = realItems.map((item) => {
-          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
-          return {
-            buyer_id: user.id,
-            product_id: item.productId,
-            seller_id: item.sellerId,
-            quantity: item.quantity,
-            total_price: item.price * item.quantity,
-            status: mode === "online" ? "paid" : "pending",
-            payment_type: mode,
-            payment_method: paymentMethod,
-            delivery_code: conf.code,
-          };
-        });
-        const { error } = await supabase.from("orders").insert(orders);
-        if (error) throw error;
-      }
-
-      // Simula processamento do pagamento online
+      const { confirmations: conf } = await createOrders(mode);
       if (mode === "online") {
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1200));
         toast.success("Pagamento confirmado!");
       }
-
-      setConfirmations(itemConfirmations);
+      setConfirmations(conf);
       setStep("confirmation");
       clearCart();
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast.error("Erro ao finalizar compra.");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  // Fluxo PIX real (AbacatePay)
+  const startPixFlow = async () => {
+    setProcessing(true);
+    try {
+      const { confirmations: conf, realOrderIds } = await createOrders("online");
+      const realTotal = items
+        .filter((i) => !i.productId.startsWith("demo-"))
+        .reduce((s, i) => s + i.price * i.quantity, 0);
+
+      // Sem itens reais → simula direto
+      if (realOrderIds.length === 0 || realTotal <= 0) {
+        await new Promise((r) => setTimeout(r, 1200));
+        toast.success("Pagamento PIX confirmado (modo demo)!");
+        setConfirmations(conf);
+        setStep("confirmation");
+        clearCart();
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("abacatepay-create-pix", {
+        body: { orderIds: realOrderIds, totalAmount: realTotal },
+      });
+      if (error || data?.error) throw new Error(data?.error ?? error?.message);
+
+      setPixData({
+        qrId: data.id,
+        brCode: data.brCode,
+        brCodeBase64: data.brCodeBase64,
+        realOrderIds,
+        devMode: !!data.devMode,
+      });
+      setConfirmations(conf);
+      setStep("pix-waiting");
+
+      // Poll a cada 4s
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      pollRef.current = window.setInterval(() => checkPixStatus(data.id, false), 4000);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message ?? "Erro ao gerar PIX");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const checkPixStatus = async (qrId: string, simulate: boolean) => {
+    if (checkingPayment) return;
+    setCheckingPayment(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("abacatepay-check-pix", {
+        body: { qrId, simulate },
+      });
+      if (error) throw error;
+      if (data?.paid) {
+        if (pollRef.current) {
+          window.clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+        toast.success("Pagamento PIX recebido!");
+        setStep("confirmation");
+        clearCart();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCheckingPayment(false);
     }
   };
 
@@ -196,6 +278,7 @@ const Carrinho = () => {
     navigator.clipboard.writeText(code);
     toast.success("Código copiado!");
   };
+
 
   // ============ TELA DE CONFIRMAÇÃO (código + chat) ============
   if (step === "confirmation" && confirmations) {
