@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { Star, Settings, LogOut, ChevronRight, Trash2, CheckCircle, Camera, Edit2, X, ShoppingCart, Package } from "lucide-react";
+import { Star, Settings, LogOut, ChevronRight, Trash2, CheckCircle, Camera, Edit2, X, ShoppingCart, Package, Eraser, Wallet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,8 @@ const Perfil = () => {
   const [editComplement, setEditComplement] = useState("");
   const [editNeighborhood, setEditNeighborhood] = useState("");
   const [editState, setEditState] = useState("");
+  const [editPixKey, setEditPixKey] = useState("");
+  const [editPixKeyType, setEditPixKeyType] = useState("CPF");
   const [uploading, setUploading] = useState(false);
 
   const { data: profile } = useQuery({
@@ -49,7 +51,12 @@ const Perfil = () => {
   const { data: myOrders } = useQuery({
     queryKey: ["my-orders", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("orders").select("*, products(name)").eq("buyer_id", user!.id).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("orders")
+        .select("*, products(name)")
+        .eq("buyer_id", user!.id)
+        .eq("hidden_by_buyer", false)
+        .order("created_at", { ascending: false });
       return data ?? [];
     },
     enabled: !!user,
@@ -58,8 +65,27 @@ const Perfil = () => {
   const { data: receivedOrders } = useQuery({
     queryKey: ["received-orders", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("orders").select("*, products(name)").eq("seller_id", user!.id).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("orders")
+        .select("*, products(name)")
+        .eq("seller_id", user!.id)
+        .eq("hidden_by_seller", false)
+        .order("created_at", { ascending: false });
       return data ?? [];
+    },
+    enabled: !!user,
+  });
+
+  const { data: walletSummary } = useQuery({
+    queryKey: ["wallet-summary", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wallet_transactions")
+        .select("amount, status")
+        .eq("seller_id", user!.id);
+      const held = (data ?? []).filter((w) => w.status === "held").reduce((s, w) => s + Number(w.amount), 0);
+      const released = (data ?? []).filter((w) => w.status === "released").reduce((s, w) => s + Number(w.amount), 0);
+      return { held, released };
     },
     enabled: !!user,
   });
