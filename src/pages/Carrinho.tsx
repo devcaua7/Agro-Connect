@@ -15,10 +15,10 @@ import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import {
   Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck, MessageCircle,
-  Copy, CheckCircle2, QrCode, FileText, ArrowLeft,
+  Copy, CheckCircle2, QrCode, FileText, ArrowLeft, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface DeliveryConfirmation {
   code: string;
@@ -31,7 +31,15 @@ interface DeliveryConfirmation {
   totalPrice: number;
 }
 
-type Step = "cart" | "payment-options" | "confirmation";
+interface PixData {
+  qrId: string;
+  brCode: string;
+  brCodeBase64: string;
+  realOrderIds: string[];
+  devMode: boolean;
+}
+
+type Step = "cart" | "payment-options" | "pix-waiting" | "confirmation";
 type OnlineMethod = "pix" | "card" | "boleto";
 
 const Carrinho = () => {
@@ -43,6 +51,9 @@ const Carrinho = () => {
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<Step>("cart");
   const [confirmations, setConfirmations] = useState<DeliveryConfirmation[] | null>(null);
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
   // Campos do cartão (exemplo / simulação)
   const [cardNumber, setCardNumber] = useState("");
