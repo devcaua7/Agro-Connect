@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { Star, Settings, LogOut, ChevronRight, Trash2, CheckCircle, Camera, Edit2, X, ShoppingCart, Package } from "lucide-react";
+import { Star, Settings, LogOut, ChevronRight, Trash2, CheckCircle, Camera, Edit2, X, ShoppingCart, Package, Eraser, Wallet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,8 @@ const Perfil = () => {
   const [editComplement, setEditComplement] = useState("");
   const [editNeighborhood, setEditNeighborhood] = useState("");
   const [editState, setEditState] = useState("");
+  const [editPixKey, setEditPixKey] = useState("");
+  const [editPixKeyType, setEditPixKeyType] = useState("CPF");
   const [uploading, setUploading] = useState(false);
 
   const { data: profile } = useQuery({
@@ -49,7 +51,12 @@ const Perfil = () => {
   const { data: myOrders } = useQuery({
     queryKey: ["my-orders", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("orders").select("*, products(name)").eq("buyer_id", user!.id).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("orders")
+        .select("*, products(name)")
+        .eq("buyer_id", user!.id)
+        .eq("hidden_by_buyer", false)
+        .order("created_at", { ascending: false });
       return data ?? [];
     },
     enabled: !!user,
@@ -58,8 +65,27 @@ const Perfil = () => {
   const { data: receivedOrders } = useQuery({
     queryKey: ["received-orders", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("orders").select("*, products(name)").eq("seller_id", user!.id).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("orders")
+        .select("*, products(name)")
+        .eq("seller_id", user!.id)
+        .eq("hidden_by_seller", false)
+        .order("created_at", { ascending: false });
       return data ?? [];
+    },
+    enabled: !!user,
+  });
+
+  const { data: walletSummary } = useQuery({
+    queryKey: ["wallet-summary", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wallet_transactions")
+        .select("amount, status")
+        .eq("seller_id", user!.id);
+      const held = (data ?? []).filter((w) => w.status === "held").reduce((s, w) => s + Number(w.amount), 0);
+      const released = (data ?? []).filter((w) => w.status === "released").reduce((s, w) => s + Number(w.amount), 0);
+      return { held, released };
     },
     enabled: !!user,
   });
@@ -77,7 +103,14 @@ const Perfil = () => {
   });
 
   const confirmReceipt = useMutation({
-    mutationFn: async (orderId: string) => {
+    mutationFn: async ({ orderId, isPix }: { orderId: string; isPix: boolean }) => {
+      if (isPix) {
+        const { data, error } = await supabase.functions.invoke("abacatepay-release-payout", {
+          body: { orderId },
+        });
+        if (error || data?.error) throw new Error(data?.error ?? error?.message);
+        return;
+      }
       const { error } = await supabase.from("orders").update({
         buyer_confirmed_receipt: true,
         status: "delivered",
@@ -88,8 +121,34 @@ const Perfil = () => {
       toast.success("Recebimento confirmado! Valor liberado ao vendedor.");
       queryClient.invalidateQueries({ queryKey: ["my-orders"] });
       queryClient.invalidateQueries({ queryKey: ["received-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet-summary"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const hideOrder = useMutation({
+    mutationFn: async ({ orderId, side }: { orderId: string; side: "buyer" | "seller" }) => {
+      const field = side === "buyer" ? "hidden_by_buyer" : "hidden_by_seller";
+      const { error } = await supabase.from("orders").update({ [field]: true }).eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Pedido removido do histórico.");
+      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["received-orders"] });
     },
   });
+
+  const clearHistory = async (side: "buyer" | "seller") => {
+    if (!user) return;
+    if (!confirm(`Apagar todo o histórico de ${side === "buyer" ? "pedidos" : "vendas"}?`)) return;
+    const field = side === "buyer" ? "hidden_by_buyer" : "hidden_by_seller";
+    const col = side === "buyer" ? "buyer_id" : "seller_id";
+    await supabase.from("orders").update({ [field]: true }).eq(col, user.id);
+    queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+    queryClient.invalidateQueries({ queryKey: ["received-orders"] });
+    toast.success("Histórico apagado.");
+  };
 
   const updateProfile = useMutation({
     mutationFn: async () => {
@@ -104,6 +163,8 @@ const Perfil = () => {
         complement: editComplement || null,
         neighborhood: editNeighborhood || null,
         state: editState || null,
+        pix_key: editPixKey || null,
+        pix_key_type: editPixKey ? editPixKeyType : null,
       } as any).eq("user_id", user!.id);
       if (error) throw error;
     },
@@ -150,6 +211,8 @@ const Perfil = () => {
     setEditComplement(p.complement || "");
     setEditNeighborhood(p.neighborhood || "");
     setEditState(p.state || "");
+    setEditPixKey(p.pix_key || "");
+    setEditPixKeyType(p.pix_key_type || "CPF");
     setEditing(true);
   };
 
@@ -283,7 +346,30 @@ const Perfil = () => {
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">Email: {user.email} (não editável)</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">Chave PIX para receber vendas</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Tipo</label>
+                <select
+                  value={editPixKeyType}
+                  onChange={(e) => setEditPixKeyType(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+                >
+                  <option value="CPF">CPF</option>
+                  <option value="CNPJ">CNPJ</option>
+                  <option value="EMAIL">Email</option>
+                  <option value="PHONE">Telefone</option>
+                  <option value="EVP">Aleatória</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Chave PIX</label>
+                <input type="text" value={editPixKey} onChange={(e) => setEditPixKey(e.target.value)} placeholder="ex: 11987654321"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Necessária para receber o repasse PIX quando o comprador confirmar o recebimento.</p>
+
             <button onClick={() => updateProfile.mutate()} disabled={updateProfile.isPending}
               className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50">
               {updateProfile.isPending ? "Salvando..." : "Salvar"}
@@ -292,7 +378,7 @@ const Perfil = () => {
         )}
 
         {/* Dados Pessoais Card */}
-        {!editing && (profile as any) && ((profile as any).cpf || (profile as any).street || (profile as any).cep) && (
+        {!editing && (profile as any) && ((profile as any).cpf || (profile as any).street || (profile as any).cep || (profile as any).pix_key) && (
           <div className="mb-6 p-4 bg-card rounded-xl border border-border">
             <h3 className="text-sm font-semibold text-foreground mb-3">Dados Pessoais</h3>
             <div className="space-y-1.5 text-sm">
@@ -301,6 +387,9 @@ const Perfil = () => {
               )}
               {(profile as any).phone && (
                 <p className="text-muted-foreground"><span className="text-foreground font-medium">Telefone:</span> {(profile as any).phone}</p>
+              )}
+              {(profile as any).pix_key && (
+                <p className="text-muted-foreground"><span className="text-foreground font-medium">PIX:</span> {(profile as any).pix_key} <span className="text-xs">({(profile as any).pix_key_type})</span></p>
               )}
               {((profile as any).street || (profile as any).cep) && (
                 <p className="text-muted-foreground">
@@ -346,49 +435,111 @@ const Perfil = () => {
           )}
         </div>
 
+        {/* Carteira */}
+        {walletSummary && (walletSummary.held > 0 || walletSummary.released > 0) && (
+          <div className="mb-6 p-4 bg-card rounded-xl border border-border">
+            <div className="flex items-center gap-2 mb-3">
+              <Wallet className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Minha Carteira</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">A receber (retido)</p>
+                <p className="text-base font-bold text-foreground">R$ {walletSummary.held.toFixed(2).replace(".", ",")}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Já recebido</p>
+                <p className="text-base font-bold text-foreground">R$ {walletSummary.released.toFixed(2).replace(".", ",")}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Meus Pedidos */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-foreground mb-3">Meus Pedidos</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-foreground">Meus Pedidos</h3>
+            {myOrders && myOrders.length > 0 && (
+              <button
+                onClick={() => clearHistory("buyer")}
+                className="flex items-center gap-1 text-xs text-destructive hover:underline"
+              >
+                <Eraser className="w-3.5 h-3.5" /> Apagar histórico
+              </button>
+            )}
+          </div>
           {myOrders && myOrders.length > 0 ? (
             <div className="space-y-2">
-              {myOrders.map((order) => (
-                <div key={order.id} className="p-3 bg-card rounded-xl border border-border">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">{(order as any).products?.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
-                      {statusLabels[order.status] || order.status}
-                    </span>
+              {myOrders.map((order) => {
+                const isPix = order.payment_method === "abacatepay_pix";
+                return (
+                  <div key={order.id} className="p-3 bg-card rounded-xl border border-border">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-foreground">{(order as any).products?.name}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
+                          {statusLabels[order.status] || order.status}
+                        </span>
+                        <button
+                          onClick={() => hideOrder.mutate({ orderId: order.id, side: "buyer" })}
+                          className="p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                          title="Remover do histórico"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
+                      {order.payment_type === "delivery" && " · Pagamento na entrega"}
+                      {isPix && " · PIX (carteira)"}
+                    </p>
+                    {order.status === "paid" && !order.buyer_confirmed_receipt && (
+                      <button onClick={() => confirmReceipt.mutate({ orderId: order.id, isPix })}
+                        disabled={confirmReceipt.isPending}
+                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 active:scale-[0.97] transition-all disabled:opacity-50">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        {isPix ? "Confirmar e liberar PIX" : "Confirmar Recebimento"}
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
-                    {order.payment_type === "delivery" && " · Pagamento na entrega"}
-                  </p>
-                  {order.status === "paid" && !order.buyer_confirmed_receipt && (
-                    <button onClick={() => confirmReceipt.mutate(order.id)}
-                      className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 active:scale-[0.97] transition-all">
-                      <CheckCircle className="w-3.5 h-3.5" /> Confirmar Recebimento
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum pedido realizado.</p>
+            <p className="text-sm text-muted-foreground">Nenhum pedido no histórico.</p>
           )}
         </div>
 
         {/* Pedidos Recebidos */}
         {receivedOrders && receivedOrders.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-foreground mb-3">Pedidos Recebidos</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-foreground">Pedidos Recebidos</h3>
+              <button
+                onClick={() => clearHistory("seller")}
+                className="flex items-center gap-1 text-xs text-destructive hover:underline"
+              >
+                <Eraser className="w-3.5 h-3.5" /> Apagar histórico
+              </button>
+            </div>
             <div className="space-y-2">
               {receivedOrders.map((order) => (
                 <div key={order.id} className="p-3 bg-card rounded-xl border border-border">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-foreground">{(order as any).products?.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
-                      {statusLabels[order.status] || order.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
+                        {statusLabels[order.status] || order.status}
+                      </span>
+                      <button
+                        onClick={() => hideOrder.mutate({ orderId: order.id, side: "seller" })}
+                        className="p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                        title="Remover do histórico"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
@@ -399,6 +550,7 @@ const Perfil = () => {
             </div>
           </div>
         )}
+
 
         {/* Menu */}
         <div className="space-y-1 mb-8">

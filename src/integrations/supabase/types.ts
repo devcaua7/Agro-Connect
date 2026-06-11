@@ -80,10 +80,17 @@ export type Database = {
       }
       orders: {
         Row: {
+          abacatepay_payout_id: string | null
+          abacatepay_qr_brcode: string | null
+          abacatepay_qr_id: string | null
+          abacatepay_qr_image: string | null
+          abacatepay_receipt_url: string | null
           buyer_confirmed_receipt: boolean | null
           buyer_id: string
           created_at: string
           delivery_code: string | null
+          hidden_by_buyer: boolean
+          hidden_by_seller: boolean
           id: string
           payment_method: string | null
           payment_type: string | null
@@ -96,10 +103,17 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          abacatepay_payout_id?: string | null
+          abacatepay_qr_brcode?: string | null
+          abacatepay_qr_id?: string | null
+          abacatepay_qr_image?: string | null
+          abacatepay_receipt_url?: string | null
           buyer_confirmed_receipt?: boolean | null
           buyer_id: string
           created_at?: string
           delivery_code?: string | null
+          hidden_by_buyer?: boolean
+          hidden_by_seller?: boolean
           id?: string
           payment_method?: string | null
           payment_type?: string | null
@@ -112,10 +126,17 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          abacatepay_payout_id?: string | null
+          abacatepay_qr_brcode?: string | null
+          abacatepay_qr_id?: string | null
+          abacatepay_qr_image?: string | null
+          abacatepay_receipt_url?: string | null
           buyer_confirmed_receipt?: boolean | null
           buyer_id?: string
           created_at?: string
           delivery_code?: string | null
+          hidden_by_buyer?: boolean
+          hidden_by_seller?: boolean
           id?: string
           payment_method?: string | null
           payment_type?: string | null
@@ -195,6 +216,8 @@ export type Database = {
           neighborhood: string | null
           number: string | null
           phone: string | null
+          pix_key: string | null
+          pix_key_type: string | null
           state: string | null
           street: string | null
           updated_at: string
@@ -212,6 +235,8 @@ export type Database = {
           neighborhood?: string | null
           number?: string | null
           phone?: string | null
+          pix_key?: string | null
+          pix_key_type?: string | null
           state?: string | null
           street?: string | null
           updated_at?: string
@@ -229,6 +254,8 @@ export type Database = {
           neighborhood?: string | null
           number?: string | null
           phone?: string | null
+          pix_key?: string | null
+          pix_key_type?: string | null
           state?: string | null
           street?: string | null
           updated_at?: string
@@ -267,6 +294,56 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_transactions: {
+        Row: {
+          abacatepay_payin_id: string | null
+          abacatepay_payout_id: string | null
+          amount: number
+          buyer_id: string
+          created_at: string
+          id: string
+          order_id: string
+          released_at: string | null
+          seller_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          abacatepay_payin_id?: string | null
+          abacatepay_payout_id?: string | null
+          amount: number
+          buyer_id: string
+          created_at?: string
+          id?: string
+          order_id: string
+          released_at?: string | null
+          seller_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          abacatepay_payin_id?: string | null
+          abacatepay_payout_id?: string | null
+          amount?: number
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          order_id?: string
+          released_at?: string | null
+          seller_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
