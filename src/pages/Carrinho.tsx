@@ -15,10 +15,10 @@ import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import {
   Trash2, Minus, Plus, ShoppingCart, CreditCard, Truck, MessageCircle,
-  Copy, CheckCircle2, QrCode, FileText, ArrowLeft,
+  Copy, CheckCircle2, QrCode, FileText, ArrowLeft, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface DeliveryConfirmation {
   code: string;
@@ -31,7 +31,15 @@ interface DeliveryConfirmation {
   totalPrice: number;
 }
 
-type Step = "cart" | "payment-options" | "confirmation";
+interface PixData {
+  qrId: string;
+  brCode: string;
+  brCodeBase64: string;
+  realOrderIds: string[];
+  devMode: boolean;
+}
+
+type Step = "cart" | "payment-options" | "pix-waiting" | "confirmation";
 type OnlineMethod = "pix" | "card" | "boleto";
 
 const Carrinho = () => {
@@ -43,6 +51,9 @@ const Carrinho = () => {
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<Step>("cart");
   const [confirmations, setConfirmations] = useState<DeliveryConfirmation[] | null>(null);
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
   // Campos do cartão (exemplo / simulação)
   const [cardNumber, setCardNumber] = useState("");
@@ -86,98 +97,180 @@ const Carrinho = () => {
     }
   };
 
-  // Etapa 2: finalizar (cria pedidos, gera códigos, mostra confirmação)
+  // Cleanup do poller
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, []);
+
+  // Helper: cria orders no Supabase + demo no localStorage. Retorna confirmations e IDs reais.
+  const createOrders = async (mode: "online" | "delivery"): Promise<{
+    confirmations: DeliveryConfirmation[];
+    realOrderIds: string[];
+  }> => {
+    const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
+    const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
+
+    const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
+      code: generateCode(),
+      productId: item.productId,
+      productName: item.name,
+      imageUrl: item.imageUrl,
+      sellerId: item.sellerId,
+      quantity: item.quantity,
+      priceUnit: item.priceUnit,
+      totalPrice: item.price * item.quantity,
+    }));
+
+    const paymentMethod =
+      mode === "online"
+        ? onlineMethod === "pix"
+          ? "abacatepay_pix"
+          : onlineMethod === "card"
+          ? "cartao_simulado"
+          : "boleto_simulado"
+        : "na_entrega";
+
+    // PIX real fica em pending até confirmar; outros online já como paid
+    const initialStatus =
+      mode === "online" && onlineMethod !== "pix" ? "paid" : mode === "online" ? "pending" : "pending";
+
+    // Demo orders → localStorage
+    if (demoItems.length > 0) {
+      const { addDemoOrder, generateDemoId } = await import("@/utils/demoOrders");
+      demoItems.forEach((item) => {
+        const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+        addDemoOrder({
+          id: generateDemoId(),
+          product_id: item.productId,
+          product_name: item.name,
+          product_image: item.imageUrl,
+          product_price_unit: item.priceUnit,
+          buyer_id: user.id,
+          seller_id: item.sellerId,
+          seller_name: "Produtor Demo",
+          quantity: item.quantity,
+          total_price: item.price * item.quantity,
+          status: mode === "online" ? "paid" : "pending",
+          delivery_code: conf.code,
+          payment_type: mode,
+          payment_method: paymentMethod,
+          created_at: new Date().toISOString(),
+        });
+      });
+    }
+
+    let realOrderIds: string[] = [];
+    if (realItems.length > 0) {
+      const orders = realItems.map((item) => {
+        const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
+        return {
+          buyer_id: user.id,
+          product_id: item.productId,
+          seller_id: item.sellerId,
+          quantity: item.quantity,
+          total_price: item.price * item.quantity,
+          status: initialStatus,
+          payment_type: mode,
+          payment_method: paymentMethod,
+          delivery_code: conf.code,
+        };
+      });
+      const { data, error } = await supabase.from("orders").insert(orders).select("id");
+      if (error) throw error;
+      realOrderIds = (data ?? []).map((o) => o.id);
+    }
+
+    return { confirmations: itemConfirmations, realOrderIds };
+  };
+
+  // Fluxo geral (entrega, cartão, boleto): cria pedidos e vai pra confirmação
   const finalizeOrder = async (mode: "online" | "delivery") => {
     setProcessing(true);
     try {
-      const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
-      const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
-
-      const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
-        code: generateCode(),
-        productId: item.productId,
-        productName: item.name,
-        imageUrl: item.imageUrl,
-        sellerId: item.sellerId,
-        quantity: item.quantity,
-        priceUnit: item.priceUnit,
-        totalPrice: item.price * item.quantity,
-      }));
-
-      // Demo orders → localStorage
-      if (demoItems.length > 0) {
-        const { addDemoOrder, generateDemoId } = await import("@/utils/demoOrders");
-        demoItems.forEach((item) => {
-          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
-          const paymentMethod =
-            mode === "online"
-              ? onlineMethod === "pix"
-                ? "mercado_pago_pix"
-                : onlineMethod === "card"
-                ? "mercado_pago_cartao"
-                : "mercado_pago_boleto"
-              : "na_entrega";
-          addDemoOrder({
-            id: generateDemoId(),
-            product_id: item.productId,
-            product_name: item.name,
-            product_image: item.imageUrl,
-            product_price_unit: item.priceUnit,
-            buyer_id: user.id,
-            seller_id: item.sellerId,
-            seller_name: "Produtor Demo",
-            quantity: item.quantity,
-            total_price: item.price * item.quantity,
-            status: mode === "online" ? "paid" : "pending",
-            delivery_code: conf.code,
-            payment_type: mode,
-            payment_method: paymentMethod,
-            created_at: new Date().toISOString(),
-          });
-        });
-      }
-
-      // Real orders → Supabase
-      if (realItems.length > 0) {
-        const paymentMethod =
-          mode === "online"
-            ? onlineMethod === "pix"
-              ? "mercado_pago_pix"
-              : onlineMethod === "card"
-              ? "mercado_pago_cartao"
-              : "mercado_pago_boleto"
-            : "na_entrega";
-        const orders = realItems.map((item) => {
-          const conf = itemConfirmations.find((c) => c.productId === item.productId)!;
-          return {
-            buyer_id: user.id,
-            product_id: item.productId,
-            seller_id: item.sellerId,
-            quantity: item.quantity,
-            total_price: item.price * item.quantity,
-            status: mode === "online" ? "paid" : "pending",
-            payment_type: mode,
-            payment_method: paymentMethod,
-            delivery_code: conf.code,
-          };
-        });
-        const { error } = await supabase.from("orders").insert(orders);
-        if (error) throw error;
-      }
-
-      // Simula processamento do pagamento online
+      const { confirmations: conf } = await createOrders(mode);
       if (mode === "online") {
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1200));
         toast.success("Pagamento confirmado!");
       }
-
-      setConfirmations(itemConfirmations);
+      setConfirmations(conf);
       setStep("confirmation");
       clearCart();
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast.error("Erro ao finalizar compra.");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  // Fluxo PIX real (AbacatePay)
+  const startPixFlow = async () => {
+    setProcessing(true);
+    try {
+      const { confirmations: conf, realOrderIds } = await createOrders("online");
+      const realTotal = items
+        .filter((i) => !i.productId.startsWith("demo-"))
+        .reduce((s, i) => s + i.price * i.quantity, 0);
+
+      // Sem itens reais → simula direto
+      if (realOrderIds.length === 0 || realTotal <= 0) {
+        await new Promise((r) => setTimeout(r, 1200));
+        toast.success("Pagamento PIX confirmado (modo demo)!");
+        setConfirmations(conf);
+        setStep("confirmation");
+        clearCart();
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("abacatepay-create-pix", {
+        body: { orderIds: realOrderIds, totalAmount: realTotal },
+      });
+      if (error || data?.error) throw new Error(data?.error ?? error?.message);
+
+      setPixData({
+        qrId: data.id,
+        brCode: data.brCode,
+        brCodeBase64: data.brCodeBase64,
+        realOrderIds,
+        devMode: !!data.devMode,
+      });
+      setConfirmations(conf);
+      setStep("pix-waiting");
+
+      // Poll a cada 4s
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      pollRef.current = window.setInterval(() => checkPixStatus(data.id, false), 4000);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message ?? "Erro ao gerar PIX");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const checkPixStatus = async (qrId: string, simulate: boolean) => {
+    if (checkingPayment) return;
+    setCheckingPayment(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("abacatepay-check-pix", {
+        body: { qrId, simulate },
+      });
+      if (error) throw error;
+      if (data?.paid) {
+        if (pollRef.current) {
+          window.clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+        toast.success("Pagamento PIX recebido!");
+        setStep("confirmation");
+        clearCart();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCheckingPayment(false);
     }
   };
 
@@ -185,6 +278,7 @@ const Carrinho = () => {
     navigator.clipboard.writeText(code);
     toast.success("Código copiado!");
   };
+
 
   // ============ TELA DE CONFIRMAÇÃO (código + chat) ============
   if (step === "confirmation" && confirmations) {
@@ -335,12 +429,16 @@ const Carrinho = () => {
 
           {onlineMethod === "pix" && (
             <div className="p-4 bg-card rounded-xl border border-border mb-6 text-center">
-              <div className="w-32 h-32 bg-secondary rounded-lg mx-auto mb-3 flex items-center justify-center">
-                <QrCode className="w-16 h-16 text-muted-foreground" />
+              <div className="w-20 h-20 bg-primary/10 rounded-2xl mx-auto mb-3 flex items-center justify-center">
+                <QrCode className="w-10 h-10 text-primary" />
               </div>
-              <p className="text-xs text-muted-foreground">QR Code PIX (simulado)</p>
+              <p className="text-sm font-medium text-foreground">QR Code PIX será gerado</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Integração real via AbacatePay. O valor fica retido na carteira até a confirmação do recebimento.
+              </p>
             </div>
           )}
+
 
           {onlineMethod === "card" && (
             <div className="p-4 bg-card rounded-xl border border-border mb-6 space-y-3">
@@ -436,7 +534,7 @@ const Carrinho = () => {
           )}
 
           <button
-            onClick={() => finalizeOrder("online")}
+            onClick={() => (onlineMethod === "pix" ? startPixFlow() : finalizeOrder("online"))}
             disabled={processing || (onlineMethod === "card" && !isCardValid)}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
                        hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2
@@ -445,7 +543,7 @@ const Carrinho = () => {
             {processing ? (
               <>
                 <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full" />
-                Processando...
+                {onlineMethod === "pix" ? "Gerando PIX..." : "Processando..."}
               </>
             ) : onlineMethod === "card" && installments > 1 ? (
               `Pagar ${installments}x de R$ ${(totalPrice / installments).toFixed(2).replace(".", ",")}`
@@ -455,8 +553,86 @@ const Carrinho = () => {
           </button>
 
           <p className="text-xs text-muted-foreground text-center mt-3">
-            Simulação de pagamento Mercado Pago.
+            {onlineMethod === "pix"
+              ? "PIX processado em tempo real via AbacatePay."
+              : "Simulação de pagamento (cartão / boleto)."}
           </p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ============ TELA PIX REAL (aguardando pagamento) ============
+  if (step === "pix-waiting" && pixData) {
+    return (
+      <Layout>
+        <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-md mx-auto">
+          <button
+            onClick={() => {
+              if (pollRef.current) window.clearInterval(pollRef.current);
+              setStep("payment-options");
+              setPixData(null);
+            }}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" /> Cancelar
+          </button>
+
+          <h2 className="text-xl font-bold text-foreground mb-2">Pague com PIX</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Escaneie o QR Code ou copie o código abaixo. Assim que pagar, o valor fica retido na carteira
+            da plataforma até você confirmar o recebimento.
+          </p>
+
+          <div className="p-4 bg-card rounded-xl border border-border mb-4 text-center">
+            {pixData.brCodeBase64 ? (
+              <img
+                src={
+                  pixData.brCodeBase64.startsWith("data:")
+                    ? pixData.brCodeBase64
+                    : `data:image/png;base64,${pixData.brCodeBase64}`
+                }
+                alt="QR Code PIX"
+                className="w-56 h-56 mx-auto rounded-lg"
+              />
+            ) : (
+              <div className="w-56 h-56 mx-auto bg-secondary rounded-lg flex items-center justify-center">
+                <QrCode className="w-20 h-20 text-muted-foreground" />
+              </div>
+            )}
+            <p className="text-lg font-bold text-primary mt-3">
+              R$ {totalPrice.toFixed(2).replace(".", ",")}
+            </p>
+          </div>
+
+          <div className="p-3 bg-card rounded-xl border border-border mb-4">
+            <p className="text-[11px] text-muted-foreground mb-1">PIX Copia e Cola</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-foreground break-all flex-1 font-mono">{pixData.brCode}</p>
+              <button
+                onClick={() => copyCode(pixData.brCode)}
+                className="p-2 rounded-lg hover:bg-secondary active:scale-[0.95] transition-all flex-shrink-0"
+              >
+                <Copy className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-4">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Aguardando confirmação do pagamento...
+          </div>
+
+          {pixData.devMode && (
+            <button
+              onClick={() => checkPixStatus(pixData.qrId, true)}
+              disabled={checkingPayment}
+              className="w-full py-2.5 rounded-xl border border-dashed border-primary text-primary
+                         text-sm font-medium hover:bg-primary/5 active:scale-[0.97] transition-all disabled:opacity-50"
+            >
+              {checkingPayment ? "Verificando..." : "Simular pagamento (modo dev)"}
+            </button>
+          )}
         </div>
       </Layout>
     );
