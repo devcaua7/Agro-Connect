@@ -211,6 +211,8 @@ const Perfil = () => {
     setEditComplement(p.complement || "");
     setEditNeighborhood(p.neighborhood || "");
     setEditState(p.state || "");
+    setEditPixKey(p.pix_key || "");
+    setEditPixKeyType(p.pix_key_type || "CPF");
     setEditing(true);
   };
 
