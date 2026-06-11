@@ -15,7 +15,7 @@ import {
   ArrowLeft, Clock, CheckCircle, XCircle, Truck, MessageCircle, Trash2, Eraser,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getDemoOrders, saveDemoOrders, type DemoOrder } from "@/utils/demoOrders";
+import { getDemoOrders, type DemoOrder } from "@/utils/demoOrders";
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   pending: { label: "Aguardando Pagamento", color: "bg-yellow-100 text-yellow-700", icon: Clock },
