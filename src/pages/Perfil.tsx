@@ -378,7 +378,7 @@ const Perfil = () => {
         )}
 
         {/* Dados Pessoais Card */}
-        {!editing && (profile as any) && ((profile as any).cpf || (profile as any).street || (profile as any).cep) && (
+        {!editing && (profile as any) && ((profile as any).cpf || (profile as any).street || (profile as any).cep || (profile as any).pix_key) && (
           <div className="mb-6 p-4 bg-card rounded-xl border border-border">
             <h3 className="text-sm font-semibold text-foreground mb-3">Dados Pessoais</h3>
             <div className="space-y-1.5 text-sm">
@@ -387,6 +387,9 @@ const Perfil = () => {
               )}
               {(profile as any).phone && (
                 <p className="text-muted-foreground"><span className="text-foreground font-medium">Telefone:</span> {(profile as any).phone}</p>
+              )}
+              {(profile as any).pix_key && (
+                <p className="text-muted-foreground"><span className="text-foreground font-medium">PIX:</span> {(profile as any).pix_key} <span className="text-xs">({(profile as any).pix_key_type})</span></p>
               )}
               {((profile as any).street || (profile as any).cep) && (
                 <p className="text-muted-foreground">
