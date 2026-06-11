@@ -409,49 +409,111 @@ const Perfil = () => {
           )}
         </div>
 
+        {/* Carteira */}
+        {walletSummary && (walletSummary.held > 0 || walletSummary.released > 0) && (
+          <div className="mb-6 p-4 bg-card rounded-xl border border-border">
+            <div className="flex items-center gap-2 mb-3">
+              <Wallet className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Minha Carteira</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">A receber (retido)</p>
+                <p className="text-base font-bold text-foreground">R$ {walletSummary.held.toFixed(2).replace(".", ",")}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Já recebido</p>
+                <p className="text-base font-bold text-foreground">R$ {walletSummary.released.toFixed(2).replace(".", ",")}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Meus Pedidos */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-foreground mb-3">Meus Pedidos</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-foreground">Meus Pedidos</h3>
+            {myOrders && myOrders.length > 0 && (
+              <button
+                onClick={() => clearHistory("buyer")}
+                className="flex items-center gap-1 text-xs text-destructive hover:underline"
+              >
+                <Eraser className="w-3.5 h-3.5" /> Apagar histórico
+              </button>
+            )}
+          </div>
           {myOrders && myOrders.length > 0 ? (
             <div className="space-y-2">
-              {myOrders.map((order) => (
-                <div key={order.id} className="p-3 bg-card rounded-xl border border-border">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">{(order as any).products?.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
-                      {statusLabels[order.status] || order.status}
-                    </span>
+              {myOrders.map((order) => {
+                const isPix = order.payment_method === "abacatepay_pix";
+                return (
+                  <div key={order.id} className="p-3 bg-card rounded-xl border border-border">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-foreground">{(order as any).products?.name}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
+                          {statusLabels[order.status] || order.status}
+                        </span>
+                        <button
+                          onClick={() => hideOrder.mutate({ orderId: order.id, side: "buyer" })}
+                          className="p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                          title="Remover do histórico"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
+                      {order.payment_type === "delivery" && " · Pagamento na entrega"}
+                      {isPix && " · PIX (carteira)"}
+                    </p>
+                    {order.status === "paid" && !order.buyer_confirmed_receipt && (
+                      <button onClick={() => confirmReceipt.mutate({ orderId: order.id, isPix })}
+                        disabled={confirmReceipt.isPending}
+                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 active:scale-[0.97] transition-all disabled:opacity-50">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        {isPix ? "Confirmar e liberar PIX" : "Confirmar Recebimento"}
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
-                    {order.payment_type === "delivery" && " · Pagamento na entrega"}
-                  </p>
-                  {order.status === "paid" && !order.buyer_confirmed_receipt && (
-                    <button onClick={() => confirmReceipt.mutate(order.id)}
-                      className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 active:scale-[0.97] transition-all">
-                      <CheckCircle className="w-3.5 h-3.5" /> Confirmar Recebimento
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum pedido realizado.</p>
+            <p className="text-sm text-muted-foreground">Nenhum pedido no histórico.</p>
           )}
         </div>
 
         {/* Pedidos Recebidos */}
         {receivedOrders && receivedOrders.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-foreground mb-3">Pedidos Recebidos</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-foreground">Pedidos Recebidos</h3>
+              <button
+                onClick={() => clearHistory("seller")}
+                className="flex items-center gap-1 text-xs text-destructive hover:underline"
+              >
+                <Eraser className="w-3.5 h-3.5" /> Apagar histórico
+              </button>
+            </div>
             <div className="space-y-2">
               {receivedOrders.map((order) => (
                 <div key={order.id} className="p-3 bg-card rounded-xl border border-border">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-foreground">{(order as any).products?.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
-                      {statusLabels[order.status] || order.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status] || "bg-secondary text-secondary-foreground"}`}>
+                        {statusLabels[order.status] || order.status}
+                      </span>
+                      <button
+                        onClick={() => hideOrder.mutate({ orderId: order.id, side: "seller" })}
+                        className="p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                        title="Remover do histórico"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
@@ -462,6 +524,7 @@ const Perfil = () => {
             </div>
           </div>
         )}
+
 
         {/* Menu */}
         <div className="space-y-1 mb-8">
