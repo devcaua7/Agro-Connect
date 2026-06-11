@@ -103,7 +103,14 @@ const Perfil = () => {
   });
 
   const confirmReceipt = useMutation({
-    mutationFn: async (orderId: string) => {
+    mutationFn: async ({ orderId, isPix }: { orderId: string; isPix: boolean }) => {
+      if (isPix) {
+        const { data, error } = await supabase.functions.invoke("abacatepay-release-payout", {
+          body: { orderId },
+        });
+        if (error || data?.error) throw new Error(data?.error ?? error?.message);
+        return;
+      }
       const { error } = await supabase.from("orders").update({
         buyer_confirmed_receipt: true,
         status: "delivered",
@@ -114,8 +121,34 @@ const Perfil = () => {
       toast.success("Recebimento confirmado! Valor liberado ao vendedor.");
       queryClient.invalidateQueries({ queryKey: ["my-orders"] });
       queryClient.invalidateQueries({ queryKey: ["received-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet-summary"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const hideOrder = useMutation({
+    mutationFn: async ({ orderId, side }: { orderId: string; side: "buyer" | "seller" }) => {
+      const field = side === "buyer" ? "hidden_by_buyer" : "hidden_by_seller";
+      const { error } = await supabase.from("orders").update({ [field]: true }).eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Pedido removido do histórico.");
+      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["received-orders"] });
     },
   });
+
+  const clearHistory = async (side: "buyer" | "seller") => {
+    if (!user) return;
+    if (!confirm(`Apagar todo o histórico de ${side === "buyer" ? "pedidos" : "vendas"}?`)) return;
+    const field = side === "buyer" ? "hidden_by_buyer" : "hidden_by_seller";
+    const col = side === "buyer" ? "buyer_id" : "seller_id";
+    await supabase.from("orders").update({ [field]: true }).eq(col, user.id);
+    queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+    queryClient.invalidateQueries({ queryKey: ["received-orders"] });
+    toast.success("Histórico apagado.");
+  };
 
   const updateProfile = useMutation({
     mutationFn: async () => {
@@ -130,6 +163,8 @@ const Perfil = () => {
         complement: editComplement || null,
         neighborhood: editNeighborhood || null,
         state: editState || null,
+        pix_key: editPixKey || null,
+        pix_key_type: editPixKey ? editPixKeyType : null,
       } as any).eq("user_id", user!.id);
       if (error) throw error;
     },
