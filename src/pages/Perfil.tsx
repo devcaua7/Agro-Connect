@@ -346,7 +346,30 @@ const Perfil = () => {
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">Email: {user.email} (não editável)</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">Chave PIX para receber vendas</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Tipo</label>
+                <select
+                  value={editPixKeyType}
+                  onChange={(e) => setEditPixKeyType(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+                >
+                  <option value="CPF">CPF</option>
+                  <option value="CNPJ">CNPJ</option>
+                  <option value="EMAIL">Email</option>
+                  <option value="PHONE">Telefone</option>
+                  <option value="EVP">Aleatória</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Chave PIX</label>
+                <input type="text" value={editPixKey} onChange={(e) => setEditPixKey(e.target.value)} placeholder="ex: 11987654321"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Necessária para receber o repasse PIX quando o comprador confirmar o recebimento.</p>
+
             <button onClick={() => updateProfile.mutate()} disabled={updateProfile.isPending}
               className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50">
               {updateProfile.isPending ? "Salvando..." : "Salvar"}
