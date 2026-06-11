@@ -530,7 +530,7 @@ const Carrinho = () => {
           )}
 
           <button
-            onClick={() => finalizeOrder("online")}
+            onClick={() => (onlineMethod === "pix" ? startPixFlow() : finalizeOrder("online"))}
             disabled={processing || (onlineMethod === "card" && !isCardValid)}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm
                        hover:opacity-90 active:scale-[0.97] transition-all flex items-center justify-center gap-2
@@ -539,7 +539,7 @@ const Carrinho = () => {
             {processing ? (
               <>
                 <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full" />
-                Processando...
+                {onlineMethod === "pix" ? "Gerando PIX..." : "Processando..."}
               </>
             ) : onlineMethod === "card" && installments > 1 ? (
               `Pagar ${installments}x de R$ ${(totalPrice / installments).toFixed(2).replace(".", ",")}`
@@ -549,8 +549,86 @@ const Carrinho = () => {
           </button>
 
           <p className="text-xs text-muted-foreground text-center mt-3">
-            Simulação de pagamento Mercado Pago.
+            {onlineMethod === "pix"
+              ? "PIX processado em tempo real via AbacatePay."
+              : "Simulação de pagamento (cartão / boleto)."}
           </p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ============ TELA PIX REAL (aguardando pagamento) ============
+  if (step === "pix-waiting" && pixData) {
+    return (
+      <Layout>
+        <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-md mx-auto">
+          <button
+            onClick={() => {
+              if (pollRef.current) window.clearInterval(pollRef.current);
+              setStep("payment-options");
+              setPixData(null);
+            }}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" /> Cancelar
+          </button>
+
+          <h2 className="text-xl font-bold text-foreground mb-2">Pague com PIX</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Escaneie o QR Code ou copie o código abaixo. Assim que pagar, o valor fica retido na carteira
+            da plataforma até você confirmar o recebimento.
+          </p>
+
+          <div className="p-4 bg-card rounded-xl border border-border mb-4 text-center">
+            {pixData.brCodeBase64 ? (
+              <img
+                src={
+                  pixData.brCodeBase64.startsWith("data:")
+                    ? pixData.brCodeBase64
+                    : `data:image/png;base64,${pixData.brCodeBase64}`
+                }
+                alt="QR Code PIX"
+                className="w-56 h-56 mx-auto rounded-lg"
+              />
+            ) : (
+              <div className="w-56 h-56 mx-auto bg-secondary rounded-lg flex items-center justify-center">
+                <QrCode className="w-20 h-20 text-muted-foreground" />
+              </div>
+            )}
+            <p className="text-lg font-bold text-primary mt-3">
+              R$ {totalPrice.toFixed(2).replace(".", ",")}
+            </p>
+          </div>
+
+          <div className="p-3 bg-card rounded-xl border border-border mb-4">
+            <p className="text-[11px] text-muted-foreground mb-1">PIX Copia e Cola</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-foreground break-all flex-1 font-mono">{pixData.brCode}</p>
+              <button
+                onClick={() => copyCode(pixData.brCode)}
+                className="p-2 rounded-lg hover:bg-secondary active:scale-[0.95] transition-all flex-shrink-0"
+              >
+                <Copy className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-4">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Aguardando confirmação do pagamento...
+          </div>
+
+          {pixData.devMode && (
+            <button
+              onClick={() => checkPixStatus(pixData.qrId, true)}
+              disabled={checkingPayment}
+              className="w-full py-2.5 rounded-xl border border-dashed border-primary text-primary
+                         text-sm font-medium hover:bg-primary/5 active:scale-[0.97] transition-all disabled:opacity-50"
+            >
+              {checkingPayment ? "Verificando..." : "Simular pagamento (modo dev)"}
+            </button>
+          )}
         </div>
       </Layout>
     );
