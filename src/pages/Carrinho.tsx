@@ -429,12 +429,16 @@ const Carrinho = () => {
 
           {onlineMethod === "pix" && (
             <div className="p-4 bg-card rounded-xl border border-border mb-6 text-center">
-              <div className="w-32 h-32 bg-secondary rounded-lg mx-auto mb-3 flex items-center justify-center">
-                <QrCode className="w-16 h-16 text-muted-foreground" />
+              <div className="w-20 h-20 bg-primary/10 rounded-2xl mx-auto mb-3 flex items-center justify-center">
+                <QrCode className="w-10 h-10 text-primary" />
               </div>
-              <p className="text-xs text-muted-foreground">QR Code PIX (simulado)</p>
+              <p className="text-sm font-medium text-foreground">QR Code PIX será gerado</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Integração real via AbacatePay. O valor fica retido na carteira até a confirmação do recebimento.
+              </p>
             </div>
           )}
+
 
           {onlineMethod === "card" && (
             <div className="p-4 bg-card rounded-xl border border-border mb-6 space-y-3">
