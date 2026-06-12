@@ -80,11 +80,6 @@ const Carrinho = () => {
     cardExpiry.length === 5 &&
     cardCvv.length >= 3;
 
-  if (!user) {
-    navigate("/login");
-    return null;
-  }
-
   const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
   // Etapa 1: clicar em "Ir para Pagamento" ou "Confirmar Pedido"
@@ -103,6 +98,13 @@ const Carrinho = () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
     };
   }, []);
+
+  // Redirect quando não autenticado (depois dos hooks p/ respeitar Rules of Hooks)
+  useEffect(() => {
+    if (!user) navigate("/login");
+  }, [user, navigate]);
+
+  if (!user) return null;
 
   // Helper: cria orders no Supabase + demo no localStorage. Retorna confirmations e IDs reais.
   const createOrders = async (mode: "online" | "delivery"): Promise<{
