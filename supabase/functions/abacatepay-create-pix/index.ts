@@ -1,7 +1,12 @@
-// Cria uma cobrança PIX via AbacatePay e marca os pedidos com o QR code retornado.
-// Mantém valor na carteira (status 'held') depois que o pagamento for confirmado pelo check.
+// Cria uma cobrança PIX via AbacatePay (Checkout Transparente v2).
+// Doc: https://docs.abacatepay.com/pages/pix-qrcode/create
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 const ABACATE_URL = "https://api.abacatepay.com/v1/pixQrCode/create";
 
@@ -12,25 +17,31 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("ABACATEPAY_API_KEY");
     if (!apiKey) throw new Error("ABACATEPAY_API_KEY ausente");
 
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
     const authHeader = req.headers.get("Authorization") ?? "";
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: userData } = await supabaseClient.auth.getUser();
-    if (!userData?.user) throw new Error("Não autenticado");
+    const userClient = createClient(SUPABASE_URL, ANON, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) throw new Error("Não autenticado");
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const admin = createClient(SUPABASE_URL, SERVICE);
 
-    const { orderIds, totalAmount, description } = await req.json();
+    const { orderIds, totalAmount, description, customer } = await req.json();
     if (!Array.isArray(orderIds) || orderIds.length === 0) throw new Error("orderIds vazios");
     if (typeof totalAmount !== "number" || totalAmount <= 0) throw new Error("totalAmount inválido");
 
     const amountCents = Math.round(totalAmount * 100);
+
+    const payload: Record<string, unknown> = {
+      amount: amountCents,
+      expiresIn: 600,
+      description: description ?? `AgroConnect pedidos ${orderIds.length}`,
+    };
+    if (customer) payload.customer = customer;
 
     const res = await fetch(ABACATE_URL, {
       method: "POST",
@@ -38,21 +49,17 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        amount: amountCents,
-        expiresIn: 600,
-        description: description ?? `AgroConnect pedidos ${orderIds.length}`,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const json = await res.json();
     if (!res.ok || json.error) {
-      console.error("AbacatePay create error", json);
-      throw new Error(json.error?.message ?? "Falha ao criar PIX");
+      console.error("AbacatePay create error", res.status, json);
+      throw new Error(json.error?.message ?? json.error ?? `HTTP ${res.status}`);
     }
 
     const qr = json.data;
-    // Salva o ID nos pedidos para que o check encontre depois
+
     await admin
       .from("orders")
       .update({
@@ -76,7 +83,7 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
-    console.error(e);
+    console.error("create-pix failed:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
