@@ -1,8 +1,12 @@
 // Consulta status de um PIX na AbacatePay. Se pago, marca pedidos como 'paid'
 // e cria registros 'held' na carteira (escrow da plataforma).
-// Suporta `simulate=true` em devMode (endpoint /simulate-payment da AbacatePay) para o TCC.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -11,44 +15,49 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("ABACATEPAY_API_KEY");
     if (!apiKey) throw new Error("ABACATEPAY_API_KEY ausente");
 
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const client = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: userData } = await client.auth.getUser();
-    if (!userData?.user) throw new Error("Não autenticado");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const userClient = createClient(SUPABASE_URL, ANON, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) throw new Error("Não autenticado");
+
+    const admin = createClient(SUPABASE_URL, SERVICE);
 
     const { qrId, simulate } = await req.json();
     if (!qrId) throw new Error("qrId obrigatório");
 
-    // Em devMode/sandbox podemos simular o pagamento
     if (simulate) {
-      await fetch(`https://api.abacatepay.com/v1/pixQrCode/simulate-payment?id=${qrId}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ metadata: {} }),
-      });
+      const simRes = await fetch(
+        `https://api.abacatepay.com/v1/pixQrCode/simulate-payment?id=${qrId}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: {} }),
+        }
+      );
+      const simJson = await simRes.json().catch(() => ({}));
+      console.log("simulate-payment response", simRes.status, simJson);
     }
 
     const res = await fetch(`https://api.abacatepay.com/v1/pixQrCode/check?id=${qrId}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     const json = await res.json();
-    if (!res.ok || json.error) throw new Error(json.error?.message ?? "Falha ao consultar PIX");
+    if (!res.ok || json.error) {
+      console.error("check error", res.status, json);
+      throw new Error(json.error?.message ?? json.error ?? `HTTP ${res.status}`);
+    }
 
     const status = json.data?.status as string;
     let paid = false;
 
     if (status === "PAID") {
       paid = true;
-      // Pega pedidos com esse qrId
       const { data: orders } = await admin
         .from("orders")
         .select("id, buyer_id, seller_id, total_price, status")
@@ -72,7 +81,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error(e);
+    console.error("check-pix failed:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
