@@ -99,6 +99,13 @@ const Carrinho = () => {
     };
   }, []);
 
+  // Redirect quando não autenticado (depois dos hooks p/ respeitar Rules of Hooks)
+  useEffect(() => {
+    if (!user) navigate("/login");
+  }, [user, navigate]);
+
+  if (!user) return null;
+
   // Helper: cria orders no Supabase + demo no localStorage. Retorna confirmations e IDs reais.
   const createOrders = async (mode: "online" | "delivery"): Promise<{
     confirmations: DeliveryConfirmation[];
