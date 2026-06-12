@@ -80,11 +80,6 @@ const Carrinho = () => {
     cardExpiry.length === 5 &&
     cardCvv.length >= 3;
 
-  if (!user) {
-    navigate("/login");
-    return null;
-  }
-
   const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
   // Etapa 1: clicar em "Ir para Pagamento" ou "Confirmar Pedido"
