@@ -1,7 +1,12 @@
-// Libera o valor retido para o vendedor via PIX (AbacatePay /v2/pix/send).
+// Libera o valor retido para o vendedor via transferência PIX (AbacatePay /v1/pix/create).
 // Chamado quando o comprador confirma o recebimento.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -10,19 +15,18 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("ABACATEPAY_API_KEY");
     if (!apiKey) throw new Error("ABACATEPAY_API_KEY ausente");
 
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const client = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: userData } = await client.auth.getUser();
-    if (!userData?.user) throw new Error("Não autenticado");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const userClient = createClient(SUPABASE_URL, ANON, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) throw new Error("Não autenticado");
+
+    const admin = createClient(SUPABASE_URL, SERVICE);
 
     const { orderId } = await req.json();
     if (!orderId) throw new Error("orderId obrigatório");
@@ -36,7 +40,6 @@ Deno.serve(async (req) => {
     if (!order) throw new Error("Pedido não encontrado");
     if (order.buyer_id !== userData.user.id) throw new Error("Só o comprador pode liberar");
 
-    // Pega chave PIX do vendedor
     const { data: sellerProfile } = await admin
       .from("profiles")
       .select("pix_key, pix_key_type, display_name")
@@ -49,7 +52,7 @@ Deno.serve(async (req) => {
 
     const amountCents = Math.round(Number(order.total_price) * 100);
 
-    const res = await fetch("https://api.abacatepay.com/v2/pix/send", {
+    const res = await fetch("https://api.abacatepay.com/v1/pix/create", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -58,7 +61,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         amount: amountCents,
         externalId: `order-${order.id}`,
-        description: `Repasse AgroConnect - pedido ${order.id.slice(0, 8)}`,
+        description: `Repasse AgroConnect pedido ${order.id.slice(0, 8)}`,
         pix: {
           key: sellerProfile.pix_key,
           type: sellerProfile.pix_key_type,
@@ -68,8 +71,8 @@ Deno.serve(async (req) => {
 
     const json = await res.json();
     if (!res.ok || json.error) {
-      console.error("AbacatePay payout error", json);
-      throw new Error(json.error?.message ?? "Falha ao enviar PIX ao vendedor");
+      console.error("AbacatePay payout error", res.status, json);
+      throw new Error(json.error?.message ?? json.error ?? `HTTP ${res.status}`);
     }
 
     const tx = json.data;
@@ -98,7 +101,7 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
-    console.error(e);
+    console.error("release-payout failed:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
