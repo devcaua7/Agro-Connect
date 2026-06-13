@@ -8,6 +8,23 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const ABACATE_BASE_URL = "https://api.abacatepay.com/v2/transparents";
+
+const readAbacateResponse = async (res: Response) => {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch (_error) {
+    return { error: text || `HTTP ${res.status}` };
+  }
+};
+
+const getAbacateError = (json: any, fallback: string) => {
+  if (!json?.error) return fallback;
+  if (typeof json.error === "string") return json.error;
+  return json.error.message ?? json.error.code ?? fallback;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -32,25 +49,22 @@ Deno.serve(async (req) => {
     if (!qrId) throw new Error("qrId obrigatório");
 
     if (simulate) {
-      const simRes = await fetch(
-        `https://api.abacatepay.com/v1/pixQrCode/simulate-payment?id=${qrId}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ metadata: {} }),
-        }
-      );
-      const simJson = await simRes.json().catch(() => ({}));
+      const simRes = await fetch(`${ABACATE_BASE_URL}/simulate-payment?id=${encodeURIComponent(qrId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ metadata: {} }),
+      });
+      const simJson = await readAbacateResponse(simRes);
       console.log("simulate-payment response", simRes.status, simJson);
     }
 
-    const res = await fetch(`https://api.abacatepay.com/v1/pixQrCode/check?id=${qrId}`, {
+    const res = await fetch(`${ABACATE_BASE_URL}/check?id=${encodeURIComponent(qrId)}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    const json = await res.json();
+    const json = await readAbacateResponse(res);
     if (!res.ok || json.error) {
       console.error("check error", res.status, json);
-      throw new Error(json.error?.message ?? json.error ?? `HTTP ${res.status}`);
+      throw new Error(getAbacateError(json, `HTTP ${res.status}`));
     }
 
     const status = json.data?.status as string;
