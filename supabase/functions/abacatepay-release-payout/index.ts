@@ -1,4 +1,4 @@
-// Libera o valor retido para o vendedor via transferência PIX (AbacatePay /v1/pix/create).
+// Libera o valor retido para o vendedor via transferência PIX (AbacatePay /v2/pix/create).
 // Chamado quando o comprador confirma o recebimento.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -6,6 +6,21 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const readAbacateResponse = async (res: Response) => {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch (_error) {
+    return { error: text || `HTTP ${res.status}` };
+  }
+};
+
+const getAbacateError = (json: any, fallback: string) => {
+  if (!json?.error) return fallback;
+  if (typeof json.error === "string") return json.error;
+  return json.error.message ?? json.error.code ?? fallback;
 };
 
 Deno.serve(async (req) => {
@@ -52,7 +67,7 @@ Deno.serve(async (req) => {
 
     const amountCents = Math.round(Number(order.total_price) * 100);
 
-    const res = await fetch("https://api.abacatepay.com/v1/pix/create", {
+    const res = await fetch("https://api.abacatepay.com/v2/pix/create", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -62,17 +77,15 @@ Deno.serve(async (req) => {
         amount: amountCents,
         externalId: `order-${order.id}`,
         description: `Repasse AgroConnect pedido ${order.id.slice(0, 8)}`,
-        pix: {
-          key: sellerProfile.pix_key,
-          type: sellerProfile.pix_key_type,
-        },
+        pixKey: sellerProfile.pix_key,
+        pixKeyType: sellerProfile.pix_key_type,
       }),
     });
 
-    const json = await res.json();
+    const json = await readAbacateResponse(res);
     if (!res.ok || json.error) {
       console.error("AbacatePay payout error", res.status, json);
-      throw new Error(json.error?.message ?? json.error ?? `HTTP ${res.status}`);
+      throw new Error(getAbacateError(json, `HTTP ${res.status}`));
     }
 
     const tx = json.data;
