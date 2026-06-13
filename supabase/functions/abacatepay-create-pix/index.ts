@@ -1,5 +1,5 @@
 // Cria uma cobrança PIX via AbacatePay (Checkout Transparente v2).
-// Doc: https://docs.abacatepay.com/pages/pix-qrcode/create
+// Doc: https://docs.abacatepay.com/pages/transparents/create.md
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -8,7 +8,22 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const ABACATE_URL = "https://api.abacatepay.com/v1/pixQrCode/create";
+const ABACATE_URL = "https://api.abacatepay.com/v2/transparents/create";
+
+const readAbacateResponse = async (res: Response) => {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch (_error) {
+    return { error: text || `HTTP ${res.status}` };
+  }
+};
+
+const getAbacateError = (json: any, fallback: string) => {
+  if (!json?.error) return fallback;
+  if (typeof json.error === "string") return json.error;
+  return json.error.message ?? json.error.code ?? fallback;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -37,11 +52,15 @@ Deno.serve(async (req) => {
     const amountCents = Math.round(totalAmount * 100);
 
     const payload: Record<string, unknown> = {
-      amount: amountCents,
-      expiresIn: 600,
-      description: description ?? `AgroConnect pedidos ${orderIds.length}`,
+      method: "PIX",
+      data: {
+        amount: amountCents,
+        expiresIn: 600,
+        description: description ?? `AgroConnect pedidos ${orderIds.length}`,
+        metadata: { orderIds },
+        ...(customer ? { customer } : {}),
+      },
     };
-    if (customer) payload.customer = customer;
 
     const res = await fetch(ABACATE_URL, {
       method: "POST",
@@ -52,10 +71,10 @@ Deno.serve(async (req) => {
       body: JSON.stringify(payload),
     });
 
-    const json = await res.json();
+    const json = await readAbacateResponse(res);
     if (!res.ok || json.error) {
       console.error("AbacatePay create error", res.status, json);
-      throw new Error(json.error?.message ?? json.error ?? `HTTP ${res.status}`);
+      throw new Error(getAbacateError(json, `HTTP ${res.status}`));
     }
 
     const qr = json.data;
