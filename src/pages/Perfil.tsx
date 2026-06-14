@@ -26,6 +26,7 @@ const Perfil = () => {
   const [editPixKey, setEditPixKey] = useState("");
   const [editPixKeyType, setEditPixKeyType] = useState("CPF");
   const [uploading, setUploading] = useState(false);
+  const isDemoUser = user?.id === "demo-user";
 
   const { data: profile } = useQuery({
     queryKey: ["my-profile", user?.id],
@@ -33,10 +34,10 @@ const Perfil = () => {
       const { data } = await supabase.from("profiles").select("*").eq("user_id", user!.id).maybeSingle();
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
-  const displayName = profile?.display_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Usuário";
+  const displayName = isDemoUser ? "Usuário Demo" : profile?.display_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Usuário";
   const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const { data: myProducts } = useQuery({
@@ -45,7 +46,7 @@ const Perfil = () => {
       const { data } = await supabase.from("products").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
   const { data: myOrders } = useQuery({
@@ -59,7 +60,7 @@ const Perfil = () => {
         .order("created_at", { ascending: false });
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
   const { data: receivedOrders } = useQuery({
@@ -73,7 +74,7 @@ const Perfil = () => {
         .order("created_at", { ascending: false });
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
   const { data: walletSummary } = useQuery({
@@ -87,7 +88,7 @@ const Perfil = () => {
       const released = (data ?? []).filter((w) => w.status === "released").reduce((s, w) => s + Number(w.amount), 0);
       return { held, released };
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
   const deleteProduct = useMutation({
@@ -142,6 +143,10 @@ const Perfil = () => {
   const clearHistory = async (side: "buyer" | "seller") => {
     if (!user) return;
     if (!confirm(`Apagar todo o histórico de ${side === "buyer" ? "pedidos" : "vendas"}?`)) return;
+    if (isDemoUser) {
+      toast.success("Histórico demo limpo nas telas de compras/vendas.");
+      return;
+    }
     const field = side === "buyer" ? "hidden_by_buyer" : "hidden_by_seller";
     const col = side === "buyer" ? "buyer_id" : "seller_id";
     await supabase.from("orders").update({ [field]: true }).eq(col, user.id);
