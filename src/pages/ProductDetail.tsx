@@ -48,7 +48,7 @@ const ProductDetail = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!id && !isDemo,
+    enabled: !!id && !isDemo && !isDemoUser,
   });
 
   // Unifica: produto do banco OU demo
@@ -104,7 +104,7 @@ const ProductDetail = () => {
         .eq("product_id", id!);
       return count ?? 0;
     },
-    enabled: !!id && !isDemo,
+    enabled: !!id && !isDemo && !isDemoUser,
   });
 
   const { data: reviews } = useQuery({
@@ -226,13 +226,13 @@ const ProductDetail = () => {
   const isOwner = !isDemo && !isDemoUser && user?.id === product?.user_id;
 
   // Calcula média de avaliações (reais ou demo)
-  const allReviews = isDemo ? demoReviews : reviews;
+  const allReviews = isDemo || isDemoUser ? demoReviews : reviews;
   const avgRating = allReviews?.length
     ? (allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length).toFixed(1)
     : null;
 
-  const displayLikes = isDemo ? demoLikes : likesCount;
-  const displayLiked = isDemo ? demoLiked : !!userLike;
+  const displayLikes = isDemo || isDemoUser ? demoLikes : likesCount;
+  const displayLiked = isDemo || isDemoUser ? demoLiked : !!userLike;
 
   if (!isDemo && isLoading) {
     return (
