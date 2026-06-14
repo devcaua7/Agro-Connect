@@ -34,6 +34,7 @@ const ProductDetail = () => {
 
   // Verifica se é um produto demo (simulação)
   const isDemo = id?.startsWith("demo-");
+  const isDemoUser = user?.id === "demo-user";
   const demoProduct = isDemo ? mockProducts.find((p) => p.id === id) : null;
 
   const { data: dbProduct, isLoading } = useQuery({
@@ -77,7 +78,7 @@ const ProductDetail = () => {
         .maybeSingle();
       return data;
     },
-    enabled: !!product?.user_id && !isDemo,
+    enabled: !!product?.user_id && !isDemo && !isDemoUser,
   });
 
   const { data: userLike } = useQuery({
@@ -91,7 +92,7 @@ const ProductDetail = () => {
         .maybeSingle();
       return data;
     },
-    enabled: !!id && !!user && !isDemo,
+    enabled: !!id && !!user && !isDemo && !isDemoUser,
   });
 
   const { data: likesCount } = useQuery({
@@ -135,7 +136,7 @@ const ProductDetail = () => {
 
   const toggleLike = useMutation({
     mutationFn: async () => {
-      if (isDemo) {
+      if (isDemo || isDemoUser) {
         setDemoLiked((prev) => !prev);
         setDemoLikes((prev) => (demoLiked ? prev - 1 : prev + 1));
         return;
@@ -147,7 +148,7 @@ const ProductDetail = () => {
       }
     },
     onSuccess: () => {
-      if (!isDemo) {
+      if (!isDemo && !isDemoUser) {
         queryClient.invalidateQueries({ queryKey: ["like", id] });
         queryClient.invalidateQueries({ queryKey: ["likes-count", id] });
       }
@@ -168,7 +169,7 @@ const ProductDetail = () => {
 
   const submitReview = useMutation({
     mutationFn: async () => {
-      if (isDemo) {
+      if (isDemo || isDemoUser) {
         const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Você";
         setDemoReviews((prev) => [...prev, { name: displayName, rating, comment }]);
         return;
@@ -185,7 +186,7 @@ const ProductDetail = () => {
       toast.success("Avaliação enviada!");
       setRating(0);
       setComment("");
-      if (!isDemo) {
+      if (!isDemo && !isDemoUser) {
         queryClient.invalidateQueries({ queryKey: ["reviews", id] });
       }
     },
@@ -208,21 +209,21 @@ const ProductDetail = () => {
       priceUnit: product.price_unit || "kg",
       quantity,
       imageUrl: product.image_url,
-      sellerId: product.user_id,
+      sellerId: isDemoUser ? "demo-seller" : product.user_id,
     });
     toast.success("Adicionado ao carrinho!");
   };
 
   const handleChat = () => {
     if (!user) { navigate("/login"); return; }
-    if (isDemo) {
+    if (isDemo || isDemoUser) {
       navigate(`/chat?seller=demo-seller&product=${product!.id}&demo=true&productName=${encodeURIComponent(product!.name)}`);
       return;
     }
     navigate(`/chat?seller=${product!.user_id}&product=${product!.id}`);
   };
 
-  const isOwner = !isDemo && user?.id === product?.user_id;
+  const isOwner = !isDemo && !isDemoUser && user?.id === product?.user_id;
 
   // Calcula média de avaliações (reais ou demo)
   const allReviews = isDemo ? demoReviews : reviews;
