@@ -21,10 +21,32 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, displayName: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signInDemo: () => void;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const DEMO_AUTH_KEY = "agroconnect_demo_auth";
+
+const demoUser = {
+  id: "demo-user",
+  aud: "authenticated",
+  role: "authenticated",
+  email: "demo@agroconnect.local",
+  email_confirmed_at: new Date(0).toISOString(),
+  phone: "",
+  confirmed_at: new Date(0).toISOString(),
+  last_sign_in_at: new Date().toISOString(),
+  app_metadata: { provider: "demo", providers: ["demo"] },
+  user_metadata: { display_name: "Usuário Demo" },
+  identities: [],
+  created_at: new Date(0).toISOString(),
+  updated_at: new Date().toISOString(),
+  is_anonymous: false,
+} as unknown as User;
+
+const hasDemoAuth = () => localStorage.getItem(DEMO_AUTH_KEY) === "true";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -32,23 +54,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const applySession = (session: Session | null) => {
+      if (session?.user) {
+        setSession(session);
+        setUser(session.user);
+      } else if (hasDemoAuth()) {
+        setSession(null);
+        setUser(demoUser);
+      } else {
+        setSession(null);
+        setUser(null);
+      }
+      setLoading(false);
+    };
+
     /*
       IMPORTANTE: configurar o listener ANTES de chamar getSession().
       Isso garante que nenhuma mudança de estado seja perdida.
     */
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+        applySession(session);
       }
     );
 
     // Busca sessão existente (ex: usuário já estava logado)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      applySession(session);
     });
 
     // Cleanup: remove o listener quando o componente desmonta
@@ -68,16 +100,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
+    localStorage.removeItem(DEMO_AUTH_KEY);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
+  const signInDemo = () => {
+    localStorage.setItem(DEMO_AUTH_KEY, "true");
+    setSession(null);
+    setUser(demoUser);
+    setLoading(false);
+  };
+
   const signOut = async () => {
+    localStorage.removeItem(DEMO_AUTH_KEY);
+    setSession(null);
+    setUser(null);
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signInDemo, signOut }}>
       {children}
     </AuthContext.Provider>
   );
