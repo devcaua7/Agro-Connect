@@ -157,6 +157,7 @@ const Perfil = () => {
 
   const updateProfile = useMutation({
     mutationFn: async () => {
+      if (isDemoUser) return;
       const { error } = await supabase.from("profiles").update({
         display_name: editName || undefined,
         city: editCity || undefined,
@@ -183,6 +184,10 @@ const Perfil = () => {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (isDemoUser) {
+      toast.info("No modo demonstração, o avatar não é salvo.");
+      return;
+    }
     setUploading(true);
     const fileExt = file.name.split(".").pop();
     const fileName = `${user!.id}/avatar.${fileExt}`;
