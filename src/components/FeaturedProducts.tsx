@@ -1,6 +1,7 @@
 import ProductCard from "./ProductCard";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 import tomate from "@/assets/tomate.jpg";
 import alface from "@/assets/alface.jpg";
@@ -59,6 +60,9 @@ const mockProducts = [
 export { mockProducts };
 
 const FeaturedProducts = () => {
+  const { user } = useAuth();
+  const isDemoUser = user?.id === "demo-user";
+
   const { data: dbProducts } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
@@ -71,11 +75,12 @@ const FeaturedProducts = () => {
       if (error) throw error;
       return data;
     },
+    enabled: !isDemoUser,
   });
 
   return (
     <section className="px-4 md:px-8 mt-8">
-      {dbProducts && dbProducts.length > 0 && (
+      {!isDemoUser && dbProducts && dbProducts.length > 0 && (
         <>
           <h3 className="text-lg font-bold text-foreground mb-4">Anúncios Recentes</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">

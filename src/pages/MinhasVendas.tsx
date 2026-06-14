@@ -30,6 +30,7 @@ const MinhasVendas = () => {
   const queryClient = useQueryClient();
   const [codeInputs, setCodeInputs] = useState<Record<string, string>>({});
   const [demoOrders, setDemoOrders] = useState<DemoOrder[]>([]);
+  const isDemoUser = user?.id === "demo-user";
 
   const reloadDemo = () => {
     if (user) {
@@ -53,7 +54,7 @@ const MinhasVendas = () => {
         .order("created_at", { ascending: false });
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
   const { data: wallet } = useQuery({
@@ -65,7 +66,7 @@ const MinhasVendas = () => {
         .eq("seller_id", user!.id);
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
   const heldAmount = (wallet ?? []).filter((w) => w.status === "held").reduce((s, w) => s + Number(w.amount), 0);
@@ -125,7 +126,9 @@ const MinhasVendas = () => {
   const clearAllHistory = async () => {
     if (!user) return;
     if (!confirm("Apagar TODO o histórico de vendas? Os compradores continuarão vendo. Esta ação é apenas para o seu lado.")) return;
-    await supabase.from("orders").update({ hidden_by_seller: true }).eq("seller_id", user.id);
+    if (!isDemoUser) {
+      await supabase.from("orders").update({ hidden_by_seller: true }).eq("seller_id", user.id);
+    }
     const all = getDemoOrders().map((o) => o.id);
     localStorage.setItem("hidden_demo_vendas_" + user.id, JSON.stringify(all));
     reloadDemo();

@@ -29,6 +29,7 @@ const MinhasCompras = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [demoOrders, setDemoOrders] = useState<DemoOrder[]>([]);
+  const isDemoUser = user?.id === "demo-user";
 
   const reloadDemo = () => {
     if (user) {
@@ -53,7 +54,7 @@ const MinhasCompras = () => {
         .order("created_at", { ascending: false });
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !isDemoUser,
   });
 
   const { data: sellerProfiles } = useQuery({
@@ -127,12 +128,14 @@ const MinhasCompras = () => {
   const clearAllHistory = async () => {
     if (!user) return;
     if (!confirm("Apagar TODO o histórico de compras? Os vendedores continuarão vendo os pedidos. Esta ação é apenas para o seu lado.")) return;
-    const { error } = await supabase
-      .from("orders")
-      .update({ hidden_by_buyer: true })
-      .eq("buyer_id", user.id);
-    if (error) {
-      toast.error("Erro ao apagar histórico real.");
+    if (!isDemoUser) {
+      const { error } = await supabase
+        .from("orders")
+        .update({ hidden_by_buyer: true })
+        .eq("buyer_id", user.id);
+      if (error) {
+        toast.error("Erro ao apagar histórico real.");
+      }
     }
     // Demo: marca todos como hidden
     const all = getDemoOrders().filter((o) => o.buyer_id === user.id).map((o) => o.id);

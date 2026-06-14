@@ -61,6 +61,7 @@ const Carrinho = () => {
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
   const [installments, setInstallments] = useState(1);
+  const isDemoUser = user?.id === "demo-user";
 
   const formatCardNumber = (v: string) =>
     v.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
@@ -111,15 +112,15 @@ const Carrinho = () => {
     confirmations: DeliveryConfirmation[];
     realOrderIds: string[];
   }> => {
-    const demoItems = items.filter((item) => item.productId.startsWith("demo-"));
-    const realItems = items.filter((item) => !item.productId.startsWith("demo-"));
+    const demoItems = isDemoUser ? items : items.filter((item) => item.productId.startsWith("demo-"));
+    const realItems = isDemoUser ? [] : items.filter((item) => !item.productId.startsWith("demo-"));
 
     const itemConfirmations: DeliveryConfirmation[] = items.map((item) => ({
       code: generateCode(),
       productId: item.productId,
       productName: item.name,
       imageUrl: item.imageUrl,
-      sellerId: item.sellerId,
+      sellerId: isDemoUser ? "demo-seller" : item.sellerId,
       quantity: item.quantity,
       priceUnit: item.priceUnit,
       totalPrice: item.price * item.quantity,
@@ -150,7 +151,7 @@ const Carrinho = () => {
           product_image: item.imageUrl,
           product_price_unit: item.priceUnit,
           buyer_id: user.id,
-          seller_id: item.sellerId,
+          seller_id: isDemoUser ? "demo-seller" : item.sellerId,
           seller_name: "Produtor Demo",
           quantity: item.quantity,
           total_price: item.price * item.quantity,
@@ -217,7 +218,7 @@ const Carrinho = () => {
         .reduce((s, i) => s + i.price * i.quantity, 0);
 
       // Sem itens reais → simula direto
-      if (realOrderIds.length === 0 || realTotal <= 0) {
+      if (isDemoUser || realOrderIds.length === 0 || realTotal <= 0) {
         await new Promise((r) => setTimeout(r, 1200));
         toast.success("Pagamento PIX confirmado (modo demo)!");
         setConfirmations(conf);

@@ -11,8 +11,14 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInDemo } = useAuth();
   const navigate = useNavigate();
+
+  const handleDemoAccess = () => {
+    signInDemo();
+    toast.success("Modo demonstração ativado!");
+    navigate("/");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +135,17 @@ const Login = () => {
             {loading ? "Carregando..." : mode === "login" ? "Entrar" : mode === "signup" ? "Criar Conta" : "Enviar Email de Recuperação"}
           </button>
         </form>
+
+        {mode === "login" && (
+          <button
+            type="button"
+            onClick={handleDemoAccess}
+            className="w-full mt-3 py-3 rounded-xl border border-primary/30 bg-primary/5 text-primary font-semibold text-sm
+                       hover:bg-primary/10 active:scale-[0.97] transition-all duration-200"
+          >
+            Testar em modo demonstração
+          </button>
+        )}
 
         <p className="text-center text-sm text-muted-foreground mt-6 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
           {mode === "login" ? (

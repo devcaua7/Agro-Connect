@@ -65,6 +65,14 @@ const Anunciar = () => {
     }
 
     setLoading(true);
+    if (user.id === "demo-user") {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      toast.success("Anúncio publicado no modo demonstração!");
+      navigate("/");
+      setLoading(false);
+      return;
+    }
+
     let imageUrl: string | null = null;
 
     if (imageFile) {
