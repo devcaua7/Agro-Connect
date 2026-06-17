@@ -1,5 +1,5 @@
 // Libera o valor retido para o vendedor via transferência PIX (AbacatePay /v2/pix/create).
-// Chamado quando o comprador confirma o recebimento.
+// Chamado pelo PRÓPRIO VENDEDOR após digitar o código de entrega de 6 dígitos.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -43,17 +43,36 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE);
 
-    const { orderId } = await req.json();
+    const { orderId, deliveryCode } = await req.json();
     if (!orderId) throw new Error("orderId obrigatório");
+    if (!deliveryCode || String(deliveryCode).length !== 6) {
+      throw new Error("Código de entrega de 6 dígitos obrigatório");
+    }
 
     const { data: order } = await admin
       .from("orders")
-      .select("id, buyer_id, seller_id, total_price, status")
+      .select("id, buyer_id, seller_id, total_price, status, delivery_code, payment_method")
       .eq("id", orderId)
       .maybeSingle();
 
     if (!order) throw new Error("Pedido não encontrado");
-    if (order.buyer_id !== userData.user.id) throw new Error("Só o comprador pode liberar");
+    if (order.seller_id !== userData.user.id) throw new Error("Só o vendedor pode confirmar a entrega");
+    if (order.status !== "paid") throw new Error("Pedido não está aguardando entrega");
+    if (String(order.delivery_code) !== String(deliveryCode)) throw new Error("Código de entrega incorreto");
+
+    // Se não é PIX, apenas marca como entregue (sem chamar AbacatePay)
+    if (order.payment_method !== "abacatepay_pix") {
+      await admin
+        .from("orders")
+        .update({
+          status: "delivered",
+          buyer_confirmed_receipt: true,
+        })
+        .eq("id", order.id);
+      return new Response(JSON.stringify({ success: true, payoutId: null, receiptUrl: null }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: sellerProfile } = await admin
       .from("profiles")
@@ -62,7 +81,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!sellerProfile?.pix_key || !sellerProfile?.pix_key_type) {
-      throw new Error("Vendedor não cadastrou chave PIX no perfil");
+      throw new Error("Cadastre sua chave PIX no perfil para receber o pagamento");
     }
 
     const amountCents = Math.round(Number(order.total_price) * 100);
