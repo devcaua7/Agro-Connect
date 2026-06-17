@@ -10,6 +10,7 @@ const corsHeaders = {
 
 const readAbacateResponse = async (res: Response) => {
   const text = await res.text();
+  console.log("[AbacatePay] status:", res.status, "body:", text);
   try {
     return text ? JSON.parse(text) : {};
   } catch (_error) {
@@ -86,23 +87,26 @@ Deno.serve(async (req) => {
 
     const amountCents = Math.round(Number(order.total_price) * 100);
 
-    // FIX 1: endpoint correto é /pix/send (não /pix/create)
+    // A doc tem inconsistência: o exemplo usa pixKey/pixKeyType no raiz,
+    // mas o OpenAPI spec usa pix: { key, type }.
+    // Testando com pixKey/pixKeyType no raiz (formato do exemplo da doc):
+    const requestBody = {
+      amount: amountCents,
+      externalId: `order-${order.id}`,
+      description: `Repasse AgroConnect pedido ${order.id.slice(0, 8)}`,
+      pixKey: sellerProfile.pix_key,
+      pixKeyType: sellerProfile.pix_key_type,
+    };
+
+    console.log("[AbacatePay] POST /v2/pix/send body:", JSON.stringify(requestBody));
+
     const res = await fetch("https://api.abacatepay.com/v2/pix/send", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      // FIX 2: a chave PIX vai dentro do objeto `pix: { key, type }`
-      body: JSON.stringify({
-        amount: amountCents,
-        externalId: `order-${order.id}`,
-        description: `Repasse AgroConnect pedido ${order.id.slice(0, 8)}`,
-        pix: {
-          key: sellerProfile.pix_key,
-          type: sellerProfile.pix_key_type,
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const json = await readAbacateResponse(res);
@@ -113,8 +117,6 @@ Deno.serve(async (req) => {
 
     const tx = json.data;
 
-    // FIX 3: status inicial é PENDING — receiptUrl ainda é null aqui.
-    // O campo abacatepay_receipt_url será populado pelo webhook transfer.completed.
     await admin
       .from("orders")
       .update({
