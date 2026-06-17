@@ -57,21 +57,6 @@ const MinhasVendas = () => {
     enabled: !!user && !isDemoUser,
   });
 
-  const { data: wallet } = useQuery({
-    queryKey: ["wallet", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("wallet_transactions")
-        .select("amount, status")
-        .eq("seller_id", user!.id);
-      return data ?? [];
-    },
-    enabled: !!user && !isDemoUser,
-  });
-
-  const heldAmount = (wallet ?? []).filter((w) => w.status === "held").reduce((s, w) => s + Number(w.amount), 0);
-  const releasedAmount = (wallet ?? []).filter((w) => w.status === "released").reduce((s, w) => s + Number(w.amount), 0);
-
   const { data: buyerProfiles } = useQuery({
     queryKey: ["buyer-profiles-vendas", dbOrders?.map((o) => o.buyer_id).join(",")],
     queryFn: async () => {
@@ -86,7 +71,7 @@ const MinhasVendas = () => {
     enabled: !!dbOrders && dbOrders.length > 0,
   });
 
-  // Mantém o fluxo de demo (vendedor digita código), não usado em PIX real
+  // Confirma entrega no demo (sem chamar edge function)
   const confirmDeliveryDemo = useMutation({
     mutationFn: async ({ orderId, code }: { orderId: string; code: string }) => {
       const order = demoOrders.find((o) => o.id === orderId);
@@ -95,7 +80,24 @@ const MinhasVendas = () => {
       updateDemoOrderStatus(orderId, "delivered");
       setDemoOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: "delivered" } : o)));
     },
-    onSuccess: () => toast.success("Entrega confirmada (demo)!"),
+    onSuccess: () => toast.success("Entrega confirmada! Pagamento liberado."),
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Confirma entrega real: chama edge function que valida o código,
+  // libera o PIX para o vendedor (se for PIX) e marca como delivered.
+  const confirmDeliveryReal = useMutation({
+    mutationFn: async ({ orderId, code }: { orderId: string; code: string }) => {
+      const { data, error } = await supabase.functions.invoke("abacatepay-release-payout", {
+        body: { orderId, deliveryCode: code },
+      });
+      if (error || data?.error) throw new Error(data?.error ?? error?.message);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Entrega confirmada! Pagamento liberado para sua conta.");
+      queryClient.invalidateQueries({ queryKey: ["minhas-vendas"] });
+    },
     onError: (err: Error) => toast.error(err.message),
   });
 
