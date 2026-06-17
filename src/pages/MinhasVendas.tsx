@@ -280,20 +280,14 @@ const MinhasVendas = () => {
                     </p>
                   </div>
 
-                  {order.status === "paid" && isPix && !order.isDemo && (
-                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200 dark:border-yellow-900 mb-3">
-                      <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                        💰 Valor retido. Será enviado pra sua chave PIX assim que o comprador confirmar o recebimento.
-                      </p>
-                    </div>
-                  )}
-
-                  {order.status === "paid" && order.deliveryCode && order.isDemo && (
+                  {order.status === "paid" && order.deliveryCode && (
                     <div className="p-3 bg-secondary/50 rounded-lg border border-dashed border-border mb-3">
                       <div className="flex items-start gap-2 mb-3">
                         <ShieldCheck className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                         <p className="text-xs text-muted-foreground">
-                          Peça o código ao comprador para simular a confirmação da entrega.
+                          {isPix
+                            ? "💰 Valor retido na plataforma. Peça o código de 6 dígitos ao comprador para liberar o PIX na sua chave."
+                            : "Peça o código de 6 dígitos ao comprador para confirmar a entrega."}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -308,10 +302,19 @@ const MinhasVendas = () => {
                           className="flex-1 px-3 py-2.5 rounded-lg bg-background border border-border text-center text-lg font-bold tracking-[0.3em] tabular-nums text-foreground placeholder:text-muted-foreground/40"
                         />
                         <button
-                          onClick={() => confirmDeliveryDemo.mutate({ orderId: order.id, code: codeValue })}
-                          disabled={codeValue.length !== 6 || confirmDeliveryDemo.isPending}
-                          className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50"
+                          onClick={() =>
+                            order.isDemo
+                              ? confirmDeliveryDemo.mutate({ orderId: order.id, code: codeValue })
+                              : confirmDeliveryReal.mutate({ orderId: order.id, code: codeValue })
+                          }
+                          disabled={
+                            codeValue.length !== 6 ||
+                            confirmDeliveryDemo.isPending ||
+                            confirmDeliveryReal.isPending
+                          }
+                          className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center gap-1.5"
                         >
+                          <CheckCircle className="w-4 h-4" />
                           Confirmar
                         </button>
                       </div>
