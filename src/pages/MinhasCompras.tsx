@@ -264,8 +264,8 @@ const MinhasCompras = () => {
                     <div className="p-3 bg-secondary/50 rounded-lg border border-dashed border-border mb-3">
                       <p className="text-xs text-muted-foreground mb-2">
                         {isPix
-                          ? "💰 Valor retido na carteira da plataforma. Confirme o recebimento para liberar o PIX ao vendedor."
-                          : "Forneça o código abaixo ao vendedor no momento da entrega."}
+                          ? "💰 Valor retido na carteira da plataforma. Informe o código abaixo ao vendedor no momento da entrega para liberar o PIX."
+                          : "Informe o código abaixo ao vendedor no momento da entrega."}
                       </p>
                       <div className="p-3 border border-dashed border-border rounded-lg text-center">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Código de Entrega</p>
@@ -273,18 +273,6 @@ const MinhasCompras = () => {
                           {order.deliveryCode}
                         </p>
                       </div>
-                      {!order.isDemo && (
-                        <button
-                          onClick={() =>
-                            isPix ? releasePayment.mutate(order.id) : confirmManual.mutate(order.id)
-                          }
-                          disabled={releasePayment.isPending || confirmManual.isPending}
-                          className="w-full mt-3 py-2 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          {isPix ? "Confirmar recebimento e liberar PIX" : "Confirmar recebimento"}
-                        </button>
-                      )}
                     </div>
                   )}
 
