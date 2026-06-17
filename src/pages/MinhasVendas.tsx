@@ -180,6 +180,15 @@ const MinhasVendas = () => {
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  // KPIs: A receber = todos os pedidos pagos aguardando entrega.
+  //       Já recebido = todos os pedidos entregues (pagamento liberado).
+  const heldAmount = allOrders
+    .filter((o) => o.status === "paid")
+    .reduce((s, o) => s + o.totalPrice, 0);
+  const releasedAmount = allOrders
+    .filter((o) => o.status === "delivered")
+    .reduce((s, o) => s + o.totalPrice, 0);
+
   return (
     <Layout>
       <div className="px-4 md:px-8 pt-6 md:pt-8 max-w-2xl mx-auto">
