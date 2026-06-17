@@ -1,4 +1,4 @@
-// Libera o valor retido para o vendedor via transferência PIX (AbacatePay /v2/pix/send).
+// Confirma a entrega e libera o valor retido para o vendedor (apenas DB).
 // Chamado pelo PRÓPRIO VENDEDOR após digitar o código de entrega de 6 dígitos.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -8,29 +8,10 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const readAbacateResponse = async (res: Response) => {
-  const text = await res.text();
-  console.log("[AbacatePay] status:", res.status, "body:", text);
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch (_error) {
-    return { error: text || `HTTP ${res.status}` };
-  }
-};
-
-const getAbacateError = (json: any, fallback: string) => {
-  if (!json?.error) return fallback;
-  if (typeof json.error === "string") return json.error;
-  return json.error.message ?? json.error.code ?? fallback;
-};
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("ABACATEPAY_API_KEY");
-    if (!apiKey) throw new Error("ABACATEPAY_API_KEY ausente");
-
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -61,82 +42,27 @@ Deno.serve(async (req) => {
     if (order.status !== "paid") throw new Error("Pedido não está aguardando entrega");
     if (String(order.delivery_code) !== String(deliveryCode)) throw new Error("Código de entrega incorreto");
 
-    // Se não é PIX, apenas marca como entregue (sem chamar AbacatePay)
-    if (order.payment_method !== "abacatepay_pix") {
-      await admin
-        .from("orders")
-        .update({
-          status: "delivered",
-          buyer_confirmed_receipt: true,
-        })
-        .eq("id", order.id);
-      return new Response(JSON.stringify({ success: true, payoutId: null, receiptUrl: null }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const now = new Date().toISOString();
 
-    const { data: sellerProfile } = await admin
-      .from("profiles")
-      .select("pix_key, pix_key_type, display_name")
-      .eq("user_id", order.seller_id)
-      .maybeSingle();
-
-    if (!sellerProfile?.pix_key || !sellerProfile?.pix_key_type) {
-      throw new Error("Cadastre sua chave PIX no perfil para receber o pagamento");
-    }
-
-    const amountCents = Math.round(Number(order.total_price) * 100);
-
-    // A doc tem inconsistência: o exemplo usa pixKey/pixKeyType no raiz,
-    // mas o OpenAPI spec usa pix: { key, type }.
-    // Testando com pixKey/pixKeyType no raiz (formato do exemplo da doc):
-    const requestBody = {
-      amount: amountCents,
-      externalId: `order-${order.id}`,
-      description: `Repasse AgroConnect pedido ${order.id.slice(0, 8)}`,
-      pixKey: sellerProfile.pix_key,
-      pixKeyType: sellerProfile.pix_key_type,
-    };
-
-    console.log("[AbacatePay] POST /v2/pix/send body:", JSON.stringify(requestBody));
-
-    const res = await fetch("https://api.abacatepay.com/v2/pix/send", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const json = await readAbacateResponse(res);
-    if (!res.ok || json.error) {
-      console.error("AbacatePay payout error", res.status, json);
-      throw new Error(getAbacateError(json, `HTTP ${res.status}`));
-    }
-
-    const tx = json.data;
-
+    // Marca pedido como entregue
     await admin
       .from("orders")
       .update({
         status: "delivered",
         buyer_confirmed_receipt: true,
-        abacatepay_payout_id: tx.id,
-        abacatepay_receipt_url: tx.receiptUrl ?? null,
       })
       .eq("id", order.id);
 
+    // Libera a wallet_transaction (simula o repasse ao vendedor)
     await admin
       .from("wallet_transactions")
       .update({
         status: "released",
-        released_at: new Date().toISOString(),
-        abacatepay_payout_id: tx.id,
+        released_at: now,
       })
       .eq("order_id", order.id);
 
-    return new Response(JSON.stringify({ success: true, payoutId: tx.id, receiptUrl: tx.receiptUrl ?? null }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
