@@ -1,4 +1,4 @@
-// Libera o valor retido para o vendedor via transferência PIX (AbacatePay /v2/pix/create).
+// Libera o valor retido para o vendedor via transferência PIX (AbacatePay /v2/pix/send).
 // Chamado pelo PRÓPRIO VENDEDOR após digitar o código de entrega de 6 dígitos.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -86,18 +86,22 @@ Deno.serve(async (req) => {
 
     const amountCents = Math.round(Number(order.total_price) * 100);
 
-    const res = await fetch("https://api.abacatepay.com/v2/pix/create", {
+    // FIX 1: endpoint correto é /pix/send (não /pix/create)
+    const res = await fetch("https://api.abacatepay.com/v2/pix/send", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      // FIX 2: a chave PIX vai dentro do objeto `pix: { key, type }`
       body: JSON.stringify({
         amount: amountCents,
         externalId: `order-${order.id}`,
         description: `Repasse AgroConnect pedido ${order.id.slice(0, 8)}`,
-        pixKey: sellerProfile.pix_key,
-        pixKeyType: sellerProfile.pix_key_type,
+        pix: {
+          key: sellerProfile.pix_key,
+          type: sellerProfile.pix_key_type,
+        },
       }),
     });
 
@@ -109,13 +113,15 @@ Deno.serve(async (req) => {
 
     const tx = json.data;
 
+    // FIX 3: status inicial é PENDING — receiptUrl ainda é null aqui.
+    // O campo abacatepay_receipt_url será populado pelo webhook transfer.completed.
     await admin
       .from("orders")
       .update({
         status: "delivered",
         buyer_confirmed_receipt: true,
         abacatepay_payout_id: tx.id,
-        abacatepay_receipt_url: tx.receiptUrl,
+        abacatepay_receipt_url: tx.receiptUrl ?? null,
       })
       .eq("id", order.id);
 
@@ -128,10 +134,9 @@ Deno.serve(async (req) => {
       })
       .eq("order_id", order.id);
 
-    return new Response(
-      JSON.stringify({ success: true, payoutId: tx.id, receiptUrl: tx.receiptUrl }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ success: true, payoutId: tx.id, receiptUrl: tx.receiptUrl ?? null }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("release-payout failed:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
