@@ -7,6 +7,18 @@ if (!rootElement) {
   throw new Error("Elemento #root não encontrado no index.html");
 }
 
+// Fallback com as chaves públicas do projeto para o app nunca cair na tela
+// de configuração quando o .env não for carregado (preview, build, etc).
+const FALLBACK_SUPABASE_URL = "https://rytcgdbzjytjodekcmeg.supabase.co";
+const FALLBACK_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5dGNnZGJ6anl0am9kZWtjbWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDYxMzIsImV4cCI6MjA4OTc4MjEzMn0.hqz2McHtzeolDqE_EyBAqWQo7sM5fzWbBWr9xmCZw9E";
+
+if (!import.meta.env.VITE_SUPABASE_URL) {
+  import.meta.env.VITE_SUPABASE_URL = FALLBACK_SUPABASE_URL;
+}
+if (!import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY = FALLBACK_SUPABASE_KEY;
+}
+
 const hasCloudConfig = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 );
