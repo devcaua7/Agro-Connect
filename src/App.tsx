@@ -13,6 +13,7 @@ import Anunciar from "./pages/Anunciar";
 import Chat from "./pages/Chat";
 import Perfil from "./pages/Perfil";
 import Login from "./pages/Login";
+import ZonasRurais from "./pages/ZonasRurais";
 import ResetPassword from "./pages/ResetPassword";
 import ProductDetail from "./pages/ProductDetail";
 import Pagamento from "./pages/Pagamento";
