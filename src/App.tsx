@@ -13,6 +13,7 @@ import Anunciar from "./pages/Anunciar";
 import Chat from "./pages/Chat";
 import Perfil from "./pages/Perfil";
 import Login from "./pages/Login";
+import ZonasRurais from "./pages/ZonasRurais";
 import ResetPassword from "./pages/ResetPassword";
 import ProductDetail from "./pages/ProductDetail";
 import Pagamento from "./pages/Pagamento";
@@ -37,6 +38,7 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/buscar" element={<Buscar />} />
+                <Route path="/zonas-rurais" element={<ZonasRurais />} />
                 <Route path="/anunciar" element={<Anunciar />} />
                 <Route path="/chat" element={<Chat />} />
                 <Route path="/perfil" element={<Perfil />} />
