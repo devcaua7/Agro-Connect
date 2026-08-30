@@ -10,12 +10,13 @@
  */
 
 import { Link, useLocation } from "react-router-dom";
-import { Home, Search, PlusCircle, MessageCircle, User, Menu, X, ShoppingCart } from "lucide-react";
+import { Home, Search, PlusCircle, MessageCircle, User, Menu, X, ShoppingCart, Sprout } from "lucide-react";
 import { useState } from "react";
 
 const menuItems = [
   { icon: Home, label: "Início", path: "/" },
   { icon: Search, label: "Buscar", path: "/buscar" },
+  { icon: Sprout, label: "Zonas Rurais", path: "/zonas-rurais" },
   { icon: PlusCircle, label: "Anunciar", path: "/anunciar" },
   { icon: ShoppingCart, label: "Carrinho", path: "/carrinho" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },

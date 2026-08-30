@@ -38,6 +38,7 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/buscar" element={<Buscar />} />
+                <Route path="/zonas-rurais" element={<ZonasRurais />} />
                 <Route path="/anunciar" element={<Anunciar />} />
                 <Route path="/chat" element={<Chat />} />
                 <Route path="/perfil" element={<Perfil />} />

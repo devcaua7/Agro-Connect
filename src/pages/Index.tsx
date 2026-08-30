@@ -18,12 +18,14 @@ import Layout from "@/components/Layout";
 import HeroBanner from "@/components/HeroBanner";
 import CategoryList from "@/components/CategoryList";
 import FeaturedProducts from "@/components/FeaturedProducts";
+import ZoneHighlights from "@/components/ZoneHighlights";
 
 const Index = () => {
   return (
     <Layout>
       <HeroBanner />
       <CategoryList />
+      <ZoneHighlights />
       <FeaturedProducts />
     </Layout>
   );
