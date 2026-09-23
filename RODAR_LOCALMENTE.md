@@ -37,14 +37,15 @@ npm install
 Na **raiz do projeto** (mesma pasta do `package.json`), crie um arquivo chamado `.env.local` com este conteúdo:
 
 ```env
-VITE_SUPABASE_URL=https://rytcgdbzjytjodekcmeg.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5dGNnZGJ6anl0am9kZWtjbWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDYxMzIsImV4cCI6MjA4OTc4MjEzMn0.hqz2McHtzeolDqE_EyBAqWQo7sM5fzWbBWr9xmCZw9E
-VITE_SUPABASE_PROJECT_ID=rytcgdbzjytjodekcmeg
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=SUA_CHAVE_PUBLICA_AQUI
+VITE_SUPABASE_PROJECT_ID=SEU_PROJECT_ID
 ```
 
-> Estas chaves são **públicas (anon key)** — podem ficar no front-end com segurança, pois o backend é protegido por RLS (Row Level Security).
+> Substitua pelos valores reais do seu projeto (URL, chave pública e project ID).
+> A chave pública (anon key) pode ficar no front-end com segurança, pois o backend é protegido por RLS (Row Level Security). Não deixe chaves **secretas** no código.
 
-Já deixei um arquivo `.env.example` no projeto. Você pode simplesmente copiar:
+Já deixei um arquivo `.env.example` no projeto com os nomes das variáveis. Você pode simplesmente copiar e preencher:
 
 **Windows (PowerShell):**
 ```powershell
@@ -55,6 +56,8 @@ Copy-Item .env.example .env.local
 ```bash
 cp .env.example .env.local
 ```
+
+> Importante: os arquivos `.env` e `.env.local` estão no `.gitignore` — nunca são enviados para o GitHub. Preencha-os localmente com seus valores reais.
 
 ## 5. Rodar o servidor de desenvolvimento
 
