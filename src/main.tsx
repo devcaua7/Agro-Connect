@@ -26,9 +26,9 @@ const LocalSetupScreen = () => (
       </p>
 
       <div className="mt-5 rounded-md bg-muted p-4 font-mono text-xs text-muted-foreground overflow-x-auto">
-        <p>VITE_SUPABASE_URL=https://rytcgdbzjytjodekcmeg.supabase.co</p>
-        <p>VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOi...</p>
-        <p>VITE_SUPABASE_PROJECT_ID=rytcgdbzjytjodekcmeg</p>
+        <p>VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co</p>
+        <p>VITE_SUPABASE_PUBLISHABLE_KEY=SUA_CHAVE_PUBLICA_AQUI</p>
+        <p>VITE_SUPABASE_PROJECT_ID=SEU_PROJECT_ID</p>
       </div>
     </section>
   </main>
